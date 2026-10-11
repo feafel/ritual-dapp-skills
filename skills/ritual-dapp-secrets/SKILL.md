@@ -495,8 +495,12 @@ const encoded = encodeAbiParameters(HTTP_CALL_ABI, [
 ### Decrypt Private Output
 
 ```typescript
-import { decrypt } from 'eciesjs';
+import { decrypt, ECIES_CONFIG } from 'eciesjs';
 import { hexToBytes, bytesToString, type Hex } from 'viem';
+
+// Ritual executors use a 12-byte symmetric nonce (eciesjs default is 16).
+// Without this, decrypt() throws on executor-produced ciphertext.
+ECIES_CONFIG.symmetricNonceLength = 12;
 
 function decryptOutput(encryptedHex: Hex, privateKeyHex: string): string {
   const clean = privateKeyHex.startsWith('0x')
