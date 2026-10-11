@@ -576,6 +576,7 @@ contract HybridMultisig {
 
     Signer[] public signers;
     uint256 public threshold;
+    uint256 public nonce;
     bool private _locked;
 
     modifier nonReentrant() {
@@ -586,19 +587,38 @@ contract HybridMultisig {
     }
 
     constructor(Signer[] memory _signers, uint256 _threshold) {
-        require(_threshold <= _signers.length, "Bad threshold");
-        for (uint256 i = 0; i < _signers.length; i++) signers.push(_signers[i]);
+        require(_threshold > 0 && _threshold <= _signers.length, "Bad threshold");
+        // Malformed keys make a permanently dead signer slot (precompile
+        // returns empty -> validCount can never reach threshold). Gate shapes
+        // up front: 20 bytes for ECDSA address, 64 bytes x||y for P-256.
+        for (uint256 i = 0; i < _signers.length; i++) {
+            if (_signers[i].keyType == KeyType.ECDSA) {
+                require(_signers[i].key.length == 20, "Bad ECDSA key length");
+            } else {
+                require(_signers[i].key.length == 64, "Bad P256 key length");
+            }
+            signers.push(_signers[i]);
+        }
         threshold = _threshold;
     }
 
     function execute(
         address target,
         bytes calldata data,
-        bytes[] calldata signatures,
-        bytes calldata message
+        bytes[] calldata signatures
     ) external nonReentrant {
+        // Domain-separated action digest: binds this multisig, chain, nonce,
+        // target, and calldata. A signature cannot be replayed on another call,
+        // another multisig, another chain, or a second time (nonce advances).
+        // EIP-191 "\n32" matches what wallets produce via signMessage(bytes32).
+        bytes32 digest = keccak256(
+            abi.encode(address(this), block.chainid, nonce, target, data)
+        );
+        bytes32 ethHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", digest)
+        );
+
         uint256 validCount = 0;
-        bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n", message));
 
         for (uint256 i = 0; i < signers.length && validCount < threshold; i++) {
             if (signatures[i].length == 0) continue;
@@ -607,20 +627,35 @@ contract HybridMultisig {
                 address recovered = _recoverECDSA(ethHash, signatures[i]);
                 if (recovered == address(bytes20(signers[i].key))) validCount++;
             } else {
+                // P-256 precompile hashes the raw message with SHA-256 internally,
+                // so pass the 32 digest bytes (not the EIP-191 hash).
                 bytes memory pubkey = abi.encodePacked(bytes1(0x04), signers[i].key);
-                bytes memory input = abi.encode(pubkey, message, signatures[i]);
+                bytes memory input = abi.encode(
+                    pubkey, abi.encodePacked(digest), signatures[i]
+                );
                 (bool ok, bytes memory result) = SECP256R1.staticcall(input);
                 if (ok && result.length > 0 && abi.decode(result, (uint256)) == 1) validCount++;
             }
         }
 
         require(validCount >= threshold, "Not enough signatures");
+        nonce++;
         (bool success,) = target.call(data);
         require(success, "Execution failed");
     }
 
     function _recoverECDSA(bytes32 hash, bytes calldata sig) internal pure returns (address) {
-        (bytes32 r, bytes32 s, uint8 v) = abi.decode(sig, (bytes32, bytes32, uint8));
+        // Packed 65-byte r||s||v signatures are NOT ABI-encoded (that would be 96 bytes),
+        // so abi.decode(sig, (bytes32, bytes32, uint8)) always reverts. Slice instead.
+        require(sig.length == 65, "bad sig length");
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(sig.offset)
+            s := calldataload(add(sig.offset, 32))
+            v := byte(0, calldataload(add(sig.offset, 64)))
+        }
         return ecrecover(hash, v, r, s);
     }
 }
