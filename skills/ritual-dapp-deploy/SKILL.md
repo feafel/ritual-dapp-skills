@@ -780,12 +780,62 @@ import { NextResponse } from 'next/server';
 
 const RPC_URL = process.env.RITUAL_RPC_URL || 'https://rpc.ritualfoundation.org';
 
+// Allowlist: only methods your app actually needs. Without this, anyone can
+// use your server as a free RPC relay, consuming your RPC quota.
+const ALLOWED_METHODS = new Set([
+  'eth_blockNumber',
+  'eth_chainId',
+  'eth_getBalance',
+  'eth_getCode',
+  'eth_getTransactionReceipt',
+  'eth_call',
+  'eth_estimateGas',
+  'eth_gasPrice',
+  'eth_getBlockByNumber',
+]);
+
+const MAX_BODY_BYTES = 1024;
+
 export async function POST(req: Request) {
-  const body = await req.text();
+  const rawBody = await req.text();
+
+  if (Buffer.byteLength(rawBody) > MAX_BODY_BYTES) {
+    return new NextResponse(JSON.stringify({ error: 'payload too large' }), {
+      status: 413,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  let parsed: unknown;
+  try { parsed = JSON.parse(rawBody); } catch {
+    return new NextResponse(JSON.stringify({ error: 'invalid JSON' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (Array.isArray(parsed)) {
+    parsed = parsed[0]; // unwrap single-item batch; reject multi-item
+    if (Array.isArray(parsed)) {
+      return new NextResponse(JSON.stringify({ error: 'batch not allowed' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
+  const { method } = parsed as { method?: string };
+  if (!method || !ALLOWED_METHODS.has(method)) {
+    return new NextResponse(
+      JSON.stringify({ error: `method ${method} not allowed` }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   const resp = await fetch(RPC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body,
+    body: JSON.stringify(parsed),
   });
   return new NextResponse(await resp.text(), {
     headers: { 'Content-Type': 'application/json' },

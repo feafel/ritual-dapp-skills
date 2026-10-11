@@ -105,16 +105,63 @@ import { NextRequest, NextResponse } from "next/server";
 
 const RPC_URL = process.env.RITUAL_RPC_URL ?? "https://rpc.ritualfoundation.org";
 
+// Allowlist: only methods your app actually needs. Without this, anyone can
+// use your server as a free RPC relay (eth_getLogs, debug_traceTransaction, etc.),
+// consuming your RPC quota and potentially exposing internal endpoints.
+const ALLOWED_METHODS = new Set([
+  "eth_blockNumber",
+  "eth_chainId",
+  "eth_getBalance",
+  "eth_getCode",
+  "eth_getTransactionReceipt",
+  "eth_call",
+  "eth_estimateGas",
+  "eth_gasPrice",
+  "eth_getBlockByNumber",
+]);
+
+const MAX_BODY_BYTES = 1024;   // JSON-RPC requests are small; reject oversized payloads
+const MAX_BATCH = 1;           // Disable batch requests by default (attack vector)
+
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const rawBody = await req.text();
+
+  // Size limit
+  if (Buffer.byteLength(rawBody) > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "payload too large" }, { status: 413 });
+  }
+
+  let parsed: unknown;
+  try { parsed = JSON.parse(rawBody); } catch {
+    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+  }
+
+  // Reject batch requests (array of calls) by default
+  if (Array.isArray(parsed)) {
+    if (parsed.length > MAX_BATCH) {
+      return NextResponse.json({ error: "batch not allowed" }, { status: 400 });
+    }
+    parsed = parsed[0]; // unwrap single-item batch
+  }
+
+  const { method } = parsed as { method?: string };
+  if (!method || !ALLOWED_METHODS.has(method)) {
+    return NextResponse.json(
+      { error: `method ${method} not allowed — add to ALLOWED_METHODS if needed` },
+      { status: 403 },
+    );
+  }
+
   const res = await fetch(RPC_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(parsed),
   });
   return NextResponse.json(await res.json());
 }
 ```
+
+> **Production warning:** This proxy trusts the `RPC_URL` environment variable. Never proxy to an RPC endpoint that exposes sensitive methods (`debug_*`, `txpool_*`, `admin_*`). Restrict `ALLOWED_METHODS` to only what your frontend needs. Consider adding rate limiting (`NextResponse` headers or middleware) and IP allowlisting.
 
 Then configure wagmi transport:
 
