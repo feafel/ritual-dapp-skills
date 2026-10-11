@@ -221,7 +221,7 @@ resultJsonPath       string    — JQ expression to extract the result from the 
 ```
 dkmsKeyIndex   uint256  — DKMS key index for encrypted delivery (0 = disabled)
 dkmsKeyFormat  uint8    — Key format (0 = disabled, 1 = Eth)
-piiEnabled     bool     — enable secret string replacement (SECRET) and PII redaction
+piiEnabled     bool     — executor-side PII-redaction flag (independent of secret substitution, which is triggered by non-empty encryptedSecrets — see ritual-dapp-secrets)
 ```
 
 ---
@@ -845,6 +845,21 @@ The Scheduler contract can trigger long-running jobs on a recurring basis — e.
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+interface IScheduler {
+    function schedule(
+        bytes calldata data,
+        uint32 gas,
+        uint32 startBlock,
+        uint32 numCalls,
+        uint32 frequency,
+        uint32 ttl,
+        uint256 maxFeePerGas,
+        uint256 maxPriorityFeePerGas,
+        uint256 value,
+        address payer
+    ) external returns (uint256 callId);
+}
+
 contract ScheduledResearchConsumer {
     address public constant LONG_RUNNING_HTTP_PRECOMPILE = address(0x0805);
     address public constant SCHEDULER = 0x56e776BAE2DD60664b69Bd5F865F1180ffB7D58B;
@@ -868,11 +883,41 @@ contract ScheduledResearchConsumer {
         encodedRequest = _encodedRequest;
     }
 
-    function executeScheduledJob() external {
+    /// @notice Register this consumer with the Scheduler (canonical 10-arg schedule).
+    /// @dev The Scheduler always calls back msg.sender, so the consumer must
+    ///      submit schedule() itself — there is no `target` parameter.
+    ///      Calldata carries a dummy executionIndex (uint256(0)); the Scheduler
+    ///      overwrites bytes 4-35 with the real index at execution time.
+    function scheduleRecurring(
+        uint32 frequency,
+        uint32 numCalls,
+        uint32 ttl
+    ) external returns (uint256 callId) {
+        require(msg.sender == owner, "Only owner");
+        bytes memory data = abi.encodeWithSelector(
+            this.executeScheduledJob.selector,
+            uint256(0) // dummy executionIndex — Scheduler overwrites
+        );
+        callId = IScheduler(SCHEDULER).schedule(
+            data,
+            500_000,                    // gas per execution
+            uint32(block.number) + 1,   // startBlock
+            numCalls,
+            frequency,
+            ttl,
+            1 gwei,                     // maxFeePerGas
+            0,                          // maxPriorityFeePerGas
+            0,                          // value per call
+            address(this)               // payer
+        );
+    }
+
+    function executeScheduledJob(uint256 executionIndex) external {
         require(
             msg.sender == SCHEDULER || msg.sender == owner,
             "Only scheduler or owner"
         );
+        executionIndex; // consumed by the Scheduler overwrite; unused here
 
         (bool ok, bytes memory rawOutput) = LONG_RUNNING_HTTP_PRECOMPILE.call(
             encodedRequest
@@ -903,7 +948,7 @@ contract ScheduledResearchConsumer {
 ### Setting Up the Schedule (TypeScript)
 
 ```typescript
-import { createWalletClient, http, defineChain, toFunctionSelector } from 'viem';
+import { createWalletClient, http, defineChain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const ritualChain = defineChain({
@@ -916,31 +961,33 @@ const ritualChain = defineChain({
 const account = privateKeyToAccount(process.env.PRIVATE_KEY! as `0x${string}`);
 const walletClient = createWalletClient({ account, chain: ritualChain, transport: http() });
 
-const SCHEDULER = '0x56e776BAE2DD60664b69Bd5F865F1180ffB7D58B' as const;
+const CONSUMER = '0x...yourScheduledResearchConsumer' as const;
 
-// Schedule the job to run every 24 hours (~246_858 blocks at ~0.35s/block)
+// Schedule from the consumer contract itself: the Scheduler has no `target`
+// parameter — it always calls back msg.sender. Use the canonical 10-arg
+// schedule() with calldata carrying a dummy executionIndex (Scheduler
+// overwrites bytes 4-35 with the real index at execution time).
+// See ritual-dapp-scheduler "Solidity: ScheduledConsumer Contract".
+// Here we call the consumer's own scheduleRecurring() helper (defined above),
+// which submits the 10-arg schedule() on-chain:
 await walletClient.writeContract({
-  address: SCHEDULER,
+  address: CONSUMER, // your deployed ScheduledResearchConsumer
   abi: [{
-    name: 'schedule',
+    name: 'scheduleRecurring',
     type: 'function',
     stateMutability: 'nonpayable',
     inputs: [
-      { name: 'target', type: 'address' },
-      { name: 'selector', type: 'bytes4' },
-      { name: 'intervalBlocks', type: 'uint256' },
-      { name: 'maxExecutions', type: 'uint256' },
-      { name: 'gasLimit', type: 'uint256' },
+      { name: 'frequency', type: 'uint32' },
+      { name: 'numCalls', type: 'uint32' },
+      { name: 'ttl', type: 'uint32' },
     ],
-    outputs: [],
+    outputs: [{ name: 'callId', type: 'uint256' }],
   }] as const,
-  functionName: 'schedule',
+  functionName: 'scheduleRecurring',
   args: [
-    '0x...ScheduledResearchConsumer',
-    toFunctionSelector('executeScheduledJob()'),
-    246_858n,  // ~24 hours at ~0.35s/block
-    0n,        // unlimited
-    500_000n,
+    246_858,  // frequency — every ~24 hours at ~0.35s/block
+    0,        // numCalls — 0 = unlimited
+    500,      // ttl — must cover the full async settlement window
   ],
 });
 ```
@@ -1015,7 +1062,7 @@ const encoded = encodeAbiParameters(LONG_HTTP_ABI, [
 
   // Poll request
   'https://api.premium-research.com/jobs/{{TASK_ID}}/status',
-  1, ['Authorization'], ['Bearer {{API_KEY}}'],
+  1, ['Authorization'], ['Bearer API_KEY'],
   new Uint8Array(0),
   '.done == true',
 
@@ -1127,7 +1174,7 @@ cast logs --address $ASYNC_DELIVERY \
 
 # What does the user's RitualWallet hold right now?
 cast call $RITUAL_WALLET "balanceOf(address)(uint256)" $USER --rpc-url $RPC
-cast call $RITUAL_WALLET "lockUntilOf(address)(uint256)" $USER --rpc-url $RPC
+cast call $RITUAL_WALLET "lockUntil(address)(uint256)" $USER --rpc-url $RPC
 ```
 
 If `isPhase1Settled = true` but no `ResultDelivered` and no `DeliveryFailed`: you are in case #2 (executor cancelled silently). If you see a `DeliveryFailed`: it's case #1 (insufficient funds) or #4 (callback revert). If neither and balance is healthy: it's case #3 (LLM/agent error inside the harness) or #5 (secrets / wrong executor) — pull the executor logs.

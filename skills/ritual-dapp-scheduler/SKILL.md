@@ -463,17 +463,34 @@ contract ScheduledLongRunningConsumer {
     address constant LONG_HTTP = address(0x0805);
     address constant ASYNC_DELIVERY = 0x5A16214fF555848411544b005f7Ac063742f39F6;
 
+    address public owner;
+    IScheduler public immutable scheduler;
     bytes public encodedRequest;
     string public latestResult;
 
     event JobSubmitted(uint256 blockNumber);
     event JobCompleted(bytes32 indexed jobId, string result);
 
-    function setRequest(bytes calldata _encodedRequest) external {
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    modifier onlyScheduler() {
+        require(msg.sender == address(scheduler), "unauthorized");
+        _;
+    }
+
+    constructor(address _scheduler) {
+        owner = msg.sender;
+        scheduler = IScheduler(_scheduler);
+    }
+
+    function setRequest(bytes calldata _encodedRequest) external onlyOwner {
         encodedRequest = _encodedRequest;
     }
 
-    function executeScheduledJob(uint256 executionIndex) external {
+    function executeScheduledJob(uint256 executionIndex) external onlyScheduler {
         (bool ok,) = LONG_HTTP.call(encodedRequest);
         require(ok, "Long-running HTTP failed");
         emit JobSubmitted(block.number);
@@ -481,11 +498,13 @@ contract ScheduledLongRunningConsumer {
 
     function onLongRunningResult(bytes32 jobId, bytes calldata result) external {
         require(msg.sender == ASYNC_DELIVERY, "unauthorized callback");
-        (bool success, bytes memory data) = abi.decode(result, (bool, bytes));
-        if (success) {
-            latestResult = abi.decode(data, (string));
-            emit JobCompleted(jobId, latestResult);
-        }
+        // Phase-2 result is HTTPCallResponse, NOT (bool,bytes):
+        // (statusCode, headerKeys, headerValues, body, errorMessage)
+        (uint16 statusCode, , , bytes memory data, string memory errorMessage) =
+            abi.decode(result, (uint16, string[], string[], bytes, string));
+        require(statusCode >= 200 && statusCode < 300, errorMessage);
+        latestResult = abi.decode(data, (string));
+        emit JobCompleted(jobId, latestResult);
     }
 }
 ```
