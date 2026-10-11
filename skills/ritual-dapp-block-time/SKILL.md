@@ -41,7 +41,11 @@ latest_ts = int(sys.argv[1], 0)
 older_ts = int(sys.argv[2], 0)
 sample = int(sys.argv[3])
 
-avg_sec = (latest_ts - older_ts) / sample
+delta = latest_ts - older_ts
+# Ritual block.timestamp is Unix MILLISECONDS (~1.786e12), not seconds.
+# Magnitude check: a per-block delta > 10 can only be ms. Divide those.
+avg_raw = delta / sample
+avg_sec = avg_raw / 1000 if avg_raw > 10 else avg_raw
 print(f"Estimated block time: {avg_sec:.4f}s ({avg_sec*1000:.1f}ms)")
 PY
 ```

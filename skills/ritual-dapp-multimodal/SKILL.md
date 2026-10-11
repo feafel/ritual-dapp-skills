@@ -800,7 +800,7 @@ contract MediaConsumer {
         results[taskId] = MediaResult({
             uri: outputUri,
             contentHash: contentHash,
-            timestamp: block.timestamp,
+            timestamp: block.timestamp, // ms on Ritual
             encrypted: encrypted
         });
         resultIds.push(taskId);
@@ -834,7 +834,7 @@ contract MediaConsumer {
         results[taskId] = MediaResult({
             uri: outputUri,
             contentHash: contentHash,
-            timestamp: block.timestamp,
+            timestamp: block.timestamp, // ms on Ritual
             encrypted: encrypted
         });
         resultIds.push(taskId);
@@ -870,7 +870,7 @@ contract MediaConsumer {
         results[taskId] = MediaResult({
             uri: outputUri,
             contentHash: contentHash,
-            timestamp: block.timestamp,
+            timestamp: block.timestamp, // ms on Ritual
             encrypted: encrypted
         });
         resultIds.push(taskId);

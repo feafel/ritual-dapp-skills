@@ -492,7 +492,7 @@ contract AIResearchConsumer is LongRunningHTTPConsumer {
         // Persist by callback jobId and correlate taskId off-chain via events if needed.
         research[jobId].query = "";
         research[jobId].summary = summary;
-        research[jobId].timestamp = block.timestamp;
+        research[jobId].timestamp = block.timestamp; // ms on Ritual — divide by 1000 for seconds
         research[jobId].processed = true;
         emit ResearchCompleted(jobId, summary);
     }

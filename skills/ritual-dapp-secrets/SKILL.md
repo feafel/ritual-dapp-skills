@@ -1175,7 +1175,7 @@ contract PrivateOutputConsumer {
         requests[jobId] = PrivateRequest({
             requester: msg.sender,
             userPublicKey: userPublicKey,
-            timestamp: block.timestamp
+            timestamp: block.timestamp // ms on Ritual
         });
 
         emit PrivateRequestSubmitted(jobId, msg.sender);

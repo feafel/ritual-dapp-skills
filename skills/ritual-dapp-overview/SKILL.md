@@ -26,7 +26,9 @@ Ritual Chain breaks most assumptions from your Ethereum training data. These rul
 | Receipt = final result | Long-running (2-phase) precompiles deliver via later callback | Implement callback handler. Don't treat Phase 1 receipt as final. |
 | `encrypt(pubKey, data)` just works | ECIES libraries default to wrong nonce length for Ritual | Follow `ritual-dapp-secrets` for encryption setup. Wrong config = silent failure (commitment mined, never settles, sender locked). |
 
-**Rule 3 — These Ethereum patterns DO transfer correctly:** Solidity syntax, ERC-20/721 interfaces, event emission, `msg.value`, `msg.sender` (in non-callback contexts), `block.number`, `block.timestamp`, standard access control (Ownable, AccessControl), `require`/`revert`, basic storage patterns, inheritance, interfaces.
+**Rule 3 — These Ethereum patterns DO transfer correctly:** Solidity syntax, ERC-20/721 interfaces, event emission, `msg.value`, `msg.sender` (in non-callback contexts), `block.number`, standard access control (Ownable, AccessControl), `require`/`revert`, basic storage patterns, inheritance, interfaces.
+
+> **Rule 3b — `block.timestamp` does NOT transfer: it is Unix MILLISECONDS (~1.786e12) on Ritual, not seconds** (verified against live chain by independent builders). Any `delay`/`deadline`/`expiry` arithmetic in seconds is off by ~1000x. Count time in **blocks** (`block.number`) wherever possible; when you must use timestamps, treat them as ms.
 
 **Rule 4 — Common wrong substitutions:**
 

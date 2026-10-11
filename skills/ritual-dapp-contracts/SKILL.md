@@ -200,10 +200,14 @@ event JobAdded(
     address senderAddress,
     bytes32 previousBlockHash,
     uint256 previousBlockNumber,
-    uint256 previousBlockTimestamp,
+    uint256 previousBlockTimestamp, // ms (Ritual block.timestamp is milliseconds)
     uint256 ttl,
-    uint256 createdAt
+    uint256 createdAt // ms
 );
+
+// NOTE: previousBlockTimestamp / createdAt are MILLISECONDS. Indexers
+// computing durations must divide by 1000; delays/deadlines in seconds
+// underflow by ~1000x. Prefer block-number arithmetic (commitBlock, ttl).
 
 event Phase1Settled(bytes32 indexed jobId, address indexed executor, uint256 settledBlock);
 event ResultDelivered(bytes32 indexed jobId, address indexed target, bool success);
