@@ -1401,7 +1401,7 @@ This is the most common failure mode for multimodal precompiles. Phase 1 succeed
 4. **Verify `outputStorageRef`:** Must be a non-empty `(platform, path, keyRef)` tuple. `['', '', '']` means no storage — executor cannot upload.
 5. **Verify credential format matches platform:** GCS needs `{"service_account_json":..., "bucket":...}` JSON; HF needs a plain token string; Pinata needs `{"jwt":..., "gateway_url":...}` JSON. See `ritual-dapp-da` for details.
 6. **Verify ECIES config:** `ECIES_CONFIG.symmetricNonceLength` must be `12` before calling `encrypt()`.
-7. **Verify executor public key:** Fetch fresh from `TEEServiceRegistry.getService(executorAddress).node.publicKey`.
+7. **Verify executor public key:** Fetch fresh from `TEEServiceRegistry.getService(executorAddress, true).node.publicKey` (`getService` takes `(address, checkValidity)` — the 1-arg form does not exist).
 8. **Executor endpoint is irrelevant to dApp developers.** Executor routing is handled internally. You only need `teeAddress` and `publicKey` from the registry.
 9. **Verify model selection:** The current chain supports only `black-forest-labs/FLUX.2-klein-4B`, `LiquidAI/LFM2.5-Audio-1.5B`, and `Wan-AI/Wan2.2-T2V-A14B-Diffusers`.
 10. **Use `eth_call` as preflight only:** Validate payload shape and immediate revert/decode issues before sending a signed transaction.

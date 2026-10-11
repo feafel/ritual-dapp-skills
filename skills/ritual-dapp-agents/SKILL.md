@@ -1485,7 +1485,7 @@ const LLMProvider = {
 } as const;
 ```
 
-> **Note:** Sovereign Agent determines provider via `LLM_PROVIDER` in encrypted secrets (see "Provider Secret Payloads" in Section 1) and additionally supports `"ritual"` (no API key needed). Persistent Agent does **not** support `"ritual"` and only accepts enum values `0..4` above.
+> **Note:** Sovereign Agent determines provider via `LLM_PROVIDER` in encrypted secrets (see "Provider Secret Payloads" in Section 3 — Sovereign Agent) and additionally supports `"ritual"` (no API key needed). Persistent Agent does **not** support `"ritual"` and only accepts enum values `0..4` above.
 
 ### Agent Runtime Enum
 

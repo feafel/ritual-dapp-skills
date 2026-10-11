@@ -1517,7 +1517,7 @@ The error string returned in `error_message` is **freeform** — there is no str
 | Tx drops when `encryptedSecrets` is non-empty | Decrypted secrets payload shape mismatch | Use string-valued secrets; for `GCS_CREDS`, the value must be a JSON string blob |
 | `GCS convo history upload failed` | Upload error after inference completed | Check bucket permissions and network connectivity |
 | Tx revert | ABI encoding mismatch or address(0) executor | Verify 30-field ABI layout; use a real registered executor address |
-| RPC `-32602 invalid async payload: ... ethabi decode failed: Invalid data` | Chain pre-validates async precompile inputs at submission time by ABI-decoding into the canonical `LLMCallRequest`. The tx never enters the mempool — `eth_getTransactionByHash` returns null. Almost always a field-count mismatch. | Encode all 30 fields including `pii_enabled` (28) and `convo_history` (29). For `convo_history` semantics (including the no-history case), see `ritual-dapp-da`. Field layout in Section 1. |
+| RPC `-32602 invalid async payload: ... ethabi decode failed: Invalid data` | Chain pre-validates async precompile inputs at submission time by ABI-decoding into the canonical `LLMCallRequest`. The tx never enters the mempool — `eth_getTransactionByHash` returns null. Almost always a field-count mismatch. | Encode all 30 fields including `pii_enabled` (28) and `convo_history` (29). For `convo_history` semantics (including the no-history case), see `ritual-dapp-da`. Field layout in Section 2 (Raw ABI Encoding / Request ABI Layout). |
 | `has_error=false` but `completion_data` content doesn't parse as expected JSON | Model deviated from the schema you supplied via `response_format` | Treat structured output as best-effort; wrap your decode in try/except and fall back to retry-or-abort. The executor does not locally validate the model's output against your schema. |
 | Empty `content` with `usage.completion_tokens` equal to `max_completion_tokens` and `finish_reason` of `"length"` | Reasoning-budget exhaustion. GLM-4.7-FP8 is a reasoning model with a hardcoded `<think>...</think>` chain-of-thought; with a small `max_completion_tokens` cap, the model burns the entire budget reasoning and never emits final-content tokens. The empty bytes on chain accurately reflect what vLLM returned. The on-chain `ChatMessage` ABI does not carry `reasoning_content`, so reasoning text is dropped at the encoding boundary even when present upstream. | Raise `max_completion_tokens` to at least 4096 (the recommended baseline for this model). Discriminator: re-run at 4096; if `content` populates and `finish_reason` flips to `stop`, the cause is confirmed. |
 | No `PrecompileCalled` in logs | Commitment phase, not settlement | Wait for the settlement tx |
@@ -1564,5 +1564,5 @@ Use this after your baseline inference flow is stable. Keep both `toolsData` and
 const toolsData = '0x' as Hex;
 const toolChoiceData = '0x' as Hex;
 // Pass these in the appropriate positions of the 30-field ABI tuple.
-// See Section 1 for the full field layout.
+// See Section 2 (Request ABI Layout) for the full field layout.
 ```

@@ -1139,7 +1139,7 @@ For integration tests, set `maxConcurrency: 1` and `testTimeout: 120_000` to ser
 
 ---
 
-## 11. Test Utilities and Helpers
+## 10. Test Utilities and Helpers
 
 ### Shared Test Fixtures
 
