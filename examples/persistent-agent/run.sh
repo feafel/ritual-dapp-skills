@@ -79,8 +79,6 @@ PHASE1_TIMEOUT="${PHASE1_TIMEOUT:-300}"
 PHASE2_TIMEOUT="${PHASE2_TIMEOUT:-300}"
 PHASE1_GAS_LIMIT="${PHASE1_GAS_LIMIT:-1000000}"
 DKMS_GAS_LIMIT="${DKMS_GAS_LIMIT:-500000}"
-MAX_FEE_GWEI="${MAX_FEE_GWEI:-20}"
-PRIORITY_FEE_GWEI="${PRIORITY_FEE_GWEI:-1}"
 
 MIN_RITUAL_WALLET_WEI="${MIN_RITUAL_WALLET_WEI:-1000000000000000000}"   # 1 RIT
 DEPOSIT_WEI="${DEPOSIT_WEI:-5000000000000000000}"                        # 5 RIT
@@ -129,8 +127,8 @@ case "$DA_PROVIDER" in
     ;;
 esac
 
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ] && [ -z "${GEMINI_API_KEY:-}" ] && [ -z "${OPENROUTER_API_KEY:-}" ]; then
-    echo "ERROR: Set one of ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY"
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ] && [ -z "${GEMINI_API_KEY:-}" ] && [ -z "${OPENROUTER_API_KEY:-}" ] && [ -z "${XAI_API_KEY:-}" ]; then
+    echo "ERROR: Set one of ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, or XAI_API_KEY"
     exit 1
 fi
 
@@ -297,7 +295,6 @@ PHASE2_OUT=$("${PY_HELPER[@]}" "$SCRIPT_DIR/helpers.py" poll-phase2 \
 printf '%s\n' "$PHASE2_OUT"
 
 INSTANCE_ID=$(printf '%s\n' "$PHASE2_OUT" | awk -F= '$1=="INSTANCE_ID"{print $2}')
-GATEWAY_URL=$(printf '%s\n' "$PHASE2_OUT" | awk -F= '$1=="GATEWAY_URL"{print $2}')
 CHECKPOINT_CID=$(printf '%s\n' "$PHASE2_OUT" | awk -F= '$1=="CHECKPOINT_CID"{print $2}')
 
 if [ -n "$RELAY_URL" ] && [ "$VERIFY_RELAY" = "1" ]; then
@@ -311,6 +308,5 @@ fi
 
 echo "Done."
 echo "Instance ID:     ${INSTANCE_ID:-unknown}"
-echo "Gateway URL:     ${GATEWAY_URL:-unknown}"
 echo "Checkpoint CID:  ${CHECKPOINT_CID:-unknown}"
 echo "Agent relay ID:  $CHILD_DKMS_ADDRESS"

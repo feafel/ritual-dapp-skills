@@ -33,7 +33,7 @@ uv --version
 No `pip`/venv setup needed for this example. `run.sh` executes `helpers.py` via:
 
 ```bash
-uv run --with eciespy --with eth-abi --with web3 python3 helpers.py ...
+uv run --quiet --with eciespy --with eth-abi --with web3 python3 helpers.py ...
 ```
 
 ## Required Inputs
@@ -64,7 +64,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 export MODEL="claude-sonnet-4-5-20250929"
 export HF_TOKEN="hf_..."
 export HF_REPO_ID="alice/my-agent-workspace"
-bash run.sh
+bash examples/sovereign-agent/run.sh  # or: cd examples/sovereign-agent && bash run.sh
 ```
 
 ## Optional Overrides
@@ -79,7 +79,7 @@ Example with explicit executor:
 
 ```bash
 export EXECUTOR_TEE_ADDRESS="0x<tee-address-from-registry>"
-bash run.sh
+bash examples/sovereign-agent/run.sh  # or: cd examples/sovereign-agent && bash run.sh
 ```
 
 ## Provider Model Examples

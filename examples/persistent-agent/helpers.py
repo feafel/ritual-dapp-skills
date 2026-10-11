@@ -173,6 +173,8 @@ def choose_provider_and_key() -> tuple[str, str, str]:
         return "gemini", "LLM_API_KEY", os.environ["GEMINI_API_KEY"]
     if os.getenv("OPENROUTER_API_KEY"):
         return "openrouter", "LLM_API_KEY", os.environ["OPENROUTER_API_KEY"]
+    if os.getenv("XAI_API_KEY"):
+        return "xai", "LLM_API_KEY", os.environ["XAI_API_KEY"]
     print("ERROR: Missing LLM API key.", file=sys.stderr)
     sys.exit(1)
 
@@ -383,16 +385,16 @@ def poll_phase2(w3: Web3, consumer: str, tx_hash: str, from_block: int, timeout:
         )
         if logs:
             result_bytes = decode_outer_bytes(bytes(logs[-1]["data"]))
-            instance_id, gateway_url, container_id, checkpoint_cid, error_message, gateway_token = decode(
+            # Indices 1 and 5 are RESERVED per ritual-dapp-agents Phase-2
+            # Response (no chain-backed semantics) — unpack but do not trust.
+            instance_id, reserved_1, container_id, checkpoint_cid, error_message, reserved_5 = decode(
                 PERSISTENT_RESPONSE_TYPES, result_bytes
             )
             print(f"PHASE2_SECONDS={time.time() - start:.1f}")
             print(f"INSTANCE_ID={instance_id}")
-            print(f"GATEWAY_URL={gateway_url}")
             print(f"CONTAINER_ID={container_id}")
             print(f"CHECKPOINT_CID={checkpoint_cid}")
             print(f"ERROR_MESSAGE={error_message}")
-            print(f"GATEWAY_TOKEN={gateway_token}")
             if error_message:
                 sys.exit(1)
             return

@@ -34,7 +34,7 @@ uv --version
 No `pip`/venv setup needed. `run.sh` executes `helpers.py` via:
 
 ```bash
-uv run --with eciespy --with eth-abi --with web3 python3 helpers.py ...
+uv run --quiet --with eciespy --with eth-abi --with web3 python3 helpers.py ...
 ```
 
 ## Required Inputs
@@ -170,7 +170,7 @@ export AGENT_RUNTIME="hermes"
 export RELAY_URL="https://<your-relay-host>"
 export VERIFY_RELAY=1
 
-bash run.sh
+bash examples/persistent-agent/run.sh  # or: cd examples/persistent-agent && bash run.sh
 ```
 
 ## What Gets Verified
