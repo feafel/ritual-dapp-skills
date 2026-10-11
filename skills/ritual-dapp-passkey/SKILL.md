@@ -998,6 +998,24 @@ The passkey controls the address. The deposit funds the precompile. These are in
 
 When a user loses all devices in their passkey sync ecosystem, they lose access. This contract allows a secondary secp256k1 key to rotate the passkey:
 
+> **⚠️ CRITICAL: This is an application-level registry, NOT native EOA recovery.**
+>
+> The TxPasskey address is derived directly from the passkey's `x || y`
+> coordinates. When recovery rotates `(x, y)`, the **new passkey maps to a
+> different address**. Funds locked at the old address remain inaccessible.
+>
+> This pattern is useful for:
+> - Rotating application-level identity (profile, permissions, data access)
+> - Smart-account wallets where the contract controls funds (not the passkey EOA)
+>
+> This pattern **does NOT recover**:
+> - Native TxPasskey EOA funds (use account abstraction / smart-account recovery instead)
+> - Any assets held directly at the passkey-derived address
+>
+> For fund recovery, use a smart-account wallet (e.g., ERC-4337) where the
+> passkey is a signer, not the owner. Recovery rotates the signer inside the
+> contract, preserving the contract address and its assets.
+
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
