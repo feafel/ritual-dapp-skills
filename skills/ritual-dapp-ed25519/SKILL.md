@@ -79,6 +79,7 @@ contract Ed25519Verifier {
 
 ```typescript
 import { encodeAbiParameters, decodeAbiParameters, createPublicClient, http } from 'viem';
+import type { PublicClient } from 'viem';
 
 const ED25519 = '0x0000000000000000000000000000000000000009';
 
@@ -95,7 +96,7 @@ function encodeEd25519Verify(
 
 // Verify via eth_call (no transaction needed, it's synchronous)
 async function verifyEd25519(
-  client: ReturnType<typeof createPublicClient>,
+  client: PublicClient,
   pubkey: `0x${string}`,     // 32 bytes
   message: `0x${string}`,    // arbitrary length
   signature: `0x${string}`   // 64 bytes (R || S)
