@@ -186,7 +186,7 @@ For checks with deterministic fixes, the protocol specifies the exact transforma
 |---|-------|------|-----------|---------|----------|
 | 1 | ABI field count = 13 (including dkmsKeyIndex, dkmsKeyFormat, piiEnabled) | T1 | MEDIUM | Count type parameters in HTTP encoding | Add missing `{ type: 'uint256' }`, `{ type: 'uint8' }`, `{ type: 'bool' }` for dkmsKeyIndex, dkmsKeyFormat, piiEnabled |
 | 2 | Method code mapping | T1 | MEDIUM | Verify GET→1, POST→2, PUT→3, DELETE→4, PATCH→5 | Fix mapping |
-| 3 | piiEnabled + secret templates consistency | T1 | HIGH | If `{{SECRET}}` templates found, piiEnabled must be true | Set piiEnabled to true |
+| 3 | Bare secret key names (no `{{...}}` wrapper) | T1 | HIGH | Grep for `{{[A-Z_]+}}` in URL/headers/body — the executor does literal key-name replacement (`API_KEY`, not `{{API_KEY}}`), so braced placeholders never match and leak or fail auth | Use bare `UPPER_SNAKE` key names matching the encrypted JSON |
 | 4 | Executor availability | T2 | HIGH | `cast call TEEServiceRegistry.getServicesByCapability(0, true)` | Wait or check RPC |
 
 **Pass condition:** Checks 1, 3, 4 must pass.
@@ -224,8 +224,8 @@ For checks with deterministic fixes, the protocol specifies the exact transforma
 | # | Check | Tier | Confidence | Command | Auto-Fix |
 |---|-------|------|-----------|---------|----------|
 | 1 | eciesjs present | T1 | HIGH | Grep in source and package.json | `npm install eciesjs` |
-| 2 | Template syntax {{CAPS}} | T1 | MEDIUM | Grep for `{{[A-Z_]+}}` patterns | Fix template format |
-| 3 | piiEnabled = true when templates used | T1 | HIGH | If templates found, piiEnabled must be true | Set to true |
+| 2 | Template syntax: bare key names | T1 | MEDIUM | Grep for `{{[A-Z_]+}}` secret patterns (excluding the real `{{TASK_ID}}` marker) | Replace with bare key names per ritual-dapp-secrets |
+| 3 | piiEnabled stays false unless doing PII redaction | T1 | HIGH | If templates found, piiEnabled must be FALSE (substitution is triggered by non-empty encryptedSecrets, not the flag) | Keep false; set true only for explicit PII redaction with userPublicKey |
 | 4 | No plaintext secrets | T1 | HIGH | Grep for `sk-`, `sk_live`, private key hex patterns | Move to encrypted secrets |
 
 **Pass condition:** All must pass.

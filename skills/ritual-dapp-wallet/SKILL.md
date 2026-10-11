@@ -169,6 +169,17 @@ interface IRitualWallet {
 contract MyDApp {
     IRitualWallet constant WALLET = IRitualWallet(0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948);
 
+    address public owner;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+    }
+
     function depositFees(uint256 lockBlocks) external payable {
         WALLET.deposit{value: msg.value}(lockBlocks);
     }
@@ -179,7 +190,7 @@ contract MyDApp {
         isLocked = block.number < lockExpiry;
     }
 
-    function withdrawFees(uint256 amount) external {
+    function withdrawFees(uint256 amount) external onlyOwner {
         require(block.number >= WALLET.lockUntil(address(this)), "still locked");
         WALLET.withdraw(amount);
     }
@@ -306,7 +317,7 @@ AsyncDelivery follows the same fund sink pattern as the Scheduler: it holds RITU
 | Sovereign Agent job | `ttl + maxPollBlock` (~1500 blocks min, often more) | **1 RITUAL per intended run** (deep agents with several iterations + tool calls have been measured at **0.5 - 1 RITUAL** — one user reported 0.86 RITUAL for a single run) |
 | Persistent Agent job | `ttl + maxPollBlock` (~1500 blocks) | 0.5 - 1 RITUAL (similar shape to Sovereign) |
 | Scheduled recurring (N calls) | `startBlock + frequency * numCalls - block.number` | N × (per-call cost + `gasLimit × maxFeePerGas`) |
-| Image / Audio / Video generation | `ttl + maxPollBlock` (~1500 blocks) | 0.01+ RITUAL (resolution / duration dependent) |
+| Image / Audio / Video generation | `ttl + maxPollBlock` (~1500 blocks) | ~0.15 RITUAL per IMAGE request (~0.14 fee + headroom; 512px from ~0.03) — see ritual-dapp-multimodal §fee table. `0.01` covers only the smallest outputs. |
 
 > **Lock duration on Ritual's ~350ms conservative baseline:** 5,000 blocks ≈ 29 minutes, 10,000 ≈ 58 minutes. For development, use `100,000` blocks (~9.7 hours) to avoid lock expiry during iteration. The lock only extends (never shortens), so over-locking has no downside. Confirm against current cadence with `ritual-dapp-block-time`.
 

@@ -1128,4 +1128,4 @@ WebAuthn is supported in all modern browsers (Chrome 67+, Firefox 60+, Safari 14
 ### Key Storage and Cross-Device Sync
 P-256 private keys are created in the device's secure enclave. On modern platforms, passkeys may sync across devices via iCloud Keychain (Apple), Google Password Manager (Android/Chrome), or Windows Hello (Microsoft). This means the "key never leaves the device" guarantee is now "key never leaves the platform ecosystem." For high-security applications, set `authenticatorAttachment: 'cross-platform'` to require a hardware security key (YubiKey) that does not sync. For consumer applications, synced passkeys are desirable — they prevent device-loss lockout.
 
-If the user loses all devices in their sync ecosystem, they lose access. Implement recovery mechanisms (see section 9 — Recovery Pattern).
+If the user loses all devices in their sync ecosystem, they lose access. Implement recovery mechanisms (see section 11 — Recovery Pattern).
