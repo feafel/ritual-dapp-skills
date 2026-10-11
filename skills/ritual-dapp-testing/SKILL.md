@@ -113,9 +113,15 @@ contract HTTPConsumerTest is Test {
     }
 
     function test_FetchData_EmitsEvent() public {
-        vm.expectEmit(false, false, false, true);
-        emit HTTPConsumer.ResponseReceived(200, '{"price": 3500}');
-
+        address exec = executor;
+        uint256 ttl = 100;
+        string memory url = "https://api.example.com/price";
+        // fetchData builds exactly this 13-field input — mock the precompile for it
+        bytes memory input = abi.encode(
+            exec, new bytes[](0), ttl, new bytes[](0), bytes(""),
+            url, uint8(1), new string[](0), new string[](0), bytes(""),
+            uint256(0), uint8(0), false
+        );
         bytes memory rawOutput = abi.encode(
             bytes("simulated-input"),
             abi.encode(
@@ -126,10 +132,14 @@ contract HTTPConsumerTest is Test {
                 ""
             )
         );
-        (uint16 status, bytes memory body, string memory err) =
-            consumer.decodeSettlement(rawOutput);
-        require(bytes(err).length == 0, err);
-        emit HTTPConsumer.ResponseReceived(status, string(body));
+        vm.mockCall(address(0x0801), input, rawOutput);
+
+        vm.expectEmit(false, false, false, true);
+        emit HTTPConsumer.ResponseReceived(200, '{"price": 3500}');
+
+        (uint16 status, bytes memory body) = consumer.fetchData(exec, ttl, url);
+        assertEq(status, 200);
+        assertEq(string(body), '{"price": 3500}');
     }
 }
 ```
@@ -1145,7 +1155,7 @@ For integration tests, set `maxConcurrency: 1` and `testTimeout: 120_000` to ser
 
 ```typescript
 // test/fixtures.ts
-import type { Address, Hex } from 'viem';
+import { toHex, type Address, type Hex } from 'viem';
 
 export const TEST_EXECUTOR: Address = '0x1234567890abcdef1234567890abcdef12345678';
 export const TEST_USER: Address = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
@@ -1153,19 +1163,28 @@ export const TEST_USER: Address = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
 export const MOCK_HTTP_RESPONSE_SUCCESS = {
   statusCode: 200 as const,
   headers: { 'content-type': 'application/json' },
-  body: new TextEncoder().encode('{"result": "ok"}'),
+  // Decoded ABI bytes arrive as Hex — keep fixtures in the same shape
+  body: toHex(new TextEncoder().encode('{"result": "ok"}')),
   errorMessage: '',
 };
 
 export const MOCK_HTTP_RESPONSE_ERROR = {
   statusCode: 0 as const,
   headers: {},
-  body: new Uint8Array(),
+  body: '0x',
   errorMessage: 'executor timeout',
 };
 
 export function makeJobId(seed: string): Hex {
-  return `0x${Buffer.from(seed.padEnd(32, '\0')).toString('hex')}` as Hex;
+  // padEnd counts UTF-16 code units, not bytes: 'é' is 1 char but 2 bytes,
+  // so pad-then-encode can exceed 32 bytes. Encode first, pad bytes, reject overflow.
+  const bytes = new TextEncoder().encode(seed);
+  if (bytes.length > 32) {
+    throw new Error(`makeJobId: seed exceeds 32 bytes (got ${bytes.length})`);
+  }
+  const padded = new Uint8Array(32);
+  padded.set(bytes);
+  return toHex(padded);
 }
 
 export function makeMockHTTPResponseData(
@@ -1173,9 +1192,11 @@ export function makeMockHTTPResponseData(
   body: string,
   error = ''
 ): Hex {
-  // Returns ABI-encoded HTTP response data for testing short-running async settlement decoding
-  const { encodeAbiParameters } = require('viem');
-  return encodeAbiParameters(
+  // Returns the FULL short-running async settlement payload: the (bytes, bytes)
+  // SPC envelope wrapping the inner HTTP response. Decoding this as (bytes, bytes)
+  // must yield the inner response — never return the inner response bare.
+  const { encodeAbiParameters, toHex } = require('viem');
+  const inner = encodeAbiParameters(
     [
       { type: 'uint16' },
       { type: 'string[]' },
@@ -1183,9 +1204,56 @@ export function makeMockHTTPResponseData(
       { type: 'bytes' },
       { type: 'string' },
     ],
-    [status, [], [], new TextEncoder().encode(body), error]
+    [status, [], [], toHex(new TextEncoder().encode(body)), error]
+  );
+  return encodeAbiParameters(
+    [{ type: 'bytes' }, { type: 'bytes' }],
+    ['0x', inner],
   );
 }
+```
+
+```typescript
+// test/fixtures.test.ts
+import { describe, it, expect } from 'vitest';
+import { decodeAbiParameters } from 'viem';
+import { makeJobId, makeMockHTTPResponseData } from './fixtures';
+
+describe('makeJobId boundaries', () => {
+  it('pads short seeds to 32 bytes', () => {
+    expect(makeJobId('abc').length).toBe(66); // 0x + 64 hex chars
+  });
+
+  it('accepts exactly 32 bytes', () => {
+    expect(makeJobId('a'.repeat(32)).length).toBe(66);
+  });
+
+  it('rejects 33-char seeds (33 bytes, not bytes32)', () => {
+    expect(() => makeJobId('a'.repeat(33))).toThrow(/exceeds 32 bytes/);
+  });
+
+  it('counts multibyte chars as bytes (é = 2 bytes)', () => {
+    // 16 × 'é' = 32 bytes exactly — must NOT throw
+    expect(makeJobId('é'.repeat(16)).length).toBe(66);
+    // 17 × 'é' = 34 bytes — must throw (old padEnd version silently made 34 bytes)
+    expect(() => makeJobId('é'.repeat(17))).toThrow(/exceeds 32 bytes/);
+  });
+});
+
+describe('makeMockHTTPResponseData envelope', () => {
+  it('decodes as (bytes, bytes) with the inner response intact', () => {
+    const data = makeMockHTTPResponseData(200, '{"price": 3500}', '');
+    const [, inner] = decodeAbiParameters(
+      [{ type: 'bytes' }, { type: 'bytes' }],
+      data,
+    );
+    const [status] = decodeAbiParameters(
+      [{ type: 'uint16' }, { type: 'string[]' }, { type: 'string[]' }, { type: 'bytes' }, { type: 'string' }],
+      inner,
+    );
+    expect(status).toBe(200);
+  });
+});
 ```
 
 ### Test Timeouts and Retries
