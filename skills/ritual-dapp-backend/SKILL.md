@@ -25,6 +25,7 @@ Ritual dApps with async precompiles need backend services to track job state, in
 │  ~350ms      │         │  - JobAdded       │         │  - events     │
 │  blocks      │         │  - Phase1Settled  │         │  - results    │
 │              │         │  - ResultDelivered│         │               │
+│              │         │  - JobRemoved     │         │               │
 └──────────────┘         └──────────────────┘         └───────┬───────┘
                                                               │
                           ┌──────────────────┐                │
@@ -53,9 +54,9 @@ Use ~350ms as a conservative planning baseline for backend thresholds. Confirm l
 
 | Concern | Implication |
 |---------|------------|
-| Event watcher throughput | Your `watchEvent` handler fires ~5x/second. Database writes must keep up. Use batch inserts or upserts. |
-| Backfill chunk sizing | 2,000 blocks = ~6.7 minutes. For multi-hour downtime, backfill is fast. For multi-day downtime, you're processing 100k+ blocks per day. |
-| Polling intervals | `pollIntervalMs: 5000` means checking every ~14,286 blocks at the 350ms baseline. Adjust based on expected job duration, not block count. |
+| Event watcher throughput | One block every ~350ms, so `watchEvent` fires ~2.9x/second sustained (plus bursts on backfill). Size DB writes for ~3 writes/s — batch inserts or upserts. |
+| Backfill chunk sizing | 2,000 blocks ≈ 700s (~11m40s at 350ms). One day ≈ 246,858 blocks. For multi-hour downtime backfill is fast; multi-day downtime means 250k+ blocks per day. |
+| Polling intervals | `pollIntervalMs: 5000` means checking every ~14 blocks at the 350ms baseline (5000/350 ≈ 14.3). Adjust based on expected job duration, not block count. |
 | Indexer lag thresholds | 50 blocks behind = ~17.5 seconds. That's healthy. Don't alert until lag > 500 blocks (~175 seconds). |
 | Reorg risk | Short reorgs are still possible at high throughput. Use upserts (not inserts) so replayed events don't create duplicates. |
 
@@ -114,9 +115,9 @@ Map chain events to status transitions (event signatures are in `IAsyncJobTracke
 | `JobRemoved(completed=false)` from cleanup | → `EXPIRED` |
 | `AsyncDelivery.SettlementFailed` | → `FAILED` (RitualWallet insufficient for Phase 1) |
 | `AsyncDelivery.DeliveryFailed` | → `FAILED` (RitualWallet insufficient for executor or callback gas+value) |
-| Block exceeds `commitBlock + ttl` (long-running: `markPhase1Settled` extends to `commitBlock + maxPollBlock`) | → `EXPIRED` once the next cleanup pass removes the row |
+| Block exceeds `commitBlock + ttl` (Phase 1 deadline); for long-running jobs past `Phase1Settled`, Phase 2 deadline is `settledBlock + maxPollBlock` (anchored at settlement, NOT at commitment) | → `EXPIRED` once the next cleanup pass removes the row |
 
-> **`Phase1Settled` does not mean the job result is ready.** For long-running async (Long HTTP, Sovereign Agent, Persistent Agent, Image / Audio / Video, ZK, FHE) it means the executor's settlement TX paid Phase 1 fees and armed the Phase 2 deadline; the off-chain work runs *after* this event. For short-running async (HTTP, LLM, ONNX, JQ, DKMS) `Phase1Settled` is **never emitted** — the result lands in the receipt's `spcCalls` and `JobRemoved(completed=true)` fires.
+> **`Phase1Settled` does not mean the job result is ready.** For long-running async (Long HTTP, Sovereign Agent, Persistent Agent, Image / Audio / Video, ZK, FHE) it means the executor's settlement TX paid Phase 1 fees and armed the Phase 2 deadline; the off-chain work runs *after* this event. For short-running async (HTTP, LLM, DKMS) `Phase1Settled` is **never emitted** — the result lands in the receipt's `spcCalls` and `JobRemoved(completed=true)` fires.
 
 ---
 
@@ -260,6 +261,12 @@ export const ritualChain = defineChain({
 });
 
 const ASYNC_JOB_TRACKER: Address = '0xC069FFCa0389f44eCA2C626e55491b0ab045AEF5';
+
+// The snippets below use these two globals — construct them once at startup.
+// asyncJobTrackerAbi is the 4-event ABI (JobAdded, Phase1Settled,
+// ResultDelivered, JobRemoved); copy it from ritual-dapp-frontend or import
+// it from your generated contract bindings — do not hand-write event strings.
+const publicClient = createPublicClient({ chain: ritualChain, transport: http() });
 ```
 
 Wire `publicClient.watchEvent` for each of the four tracker events (`JobAdded`, `Phase1Settled`, `ResultDelivered`, `JobRemoved`). On each event:
@@ -268,8 +275,8 @@ Wire `publicClient.watchEvent` for each of the four tracker events (`JobAdded`, 
 |-------|--------|
 | `JobAdded` | Upsert job with `status: PENDING_COMMITMENT`, store `sender` (from `senderAddress` field), `precompile`, `commitBlock`, `ttl`, `txHash` |
 | `Phase1Settled` | Update to `status: COMMITTED`, store `executor` |
-| `ResultDelivered` | If `success=true`, call `onJobSettled`. If `success=false`, set `status: FAILED` |
-| `JobRemoved` | Confirm `status: SETTLED` (if `completed=true`) |
+| `ResultDelivered` | Long-running only: `success=true` → capture the callback result (watch the consumer contract event, NOT `spcCalls`); `success=false` → `FAILED`. Never emitted for short-running — do not call the `spcCalls` extractor here. |
+| `JobRemoved` | If `completed=true`, this is the short-running settlement signal → run `onJobSettled`/`extractSpcResult` against the receipt, then confirm `SETTLED`. |
 
 Use `upsertJob` (not insert) so replayed events from reorgs or backfills don't create duplicates.
 
@@ -387,8 +394,10 @@ CREATE TABLE jobs (
   result          JSONB,
   error           TEXT,
   tx_hash         TEXT,
-  submitted_block INTEGER NOT NULL,
-  ttl             INTEGER,
+  -- On-chain commitment height (Job.commitBlock), NOT local mined height.
+  -- Expiry is commit_block + ttl. submitted_block is local-only metadata.
+  commit_block    BIGINT NOT NULL,
+  ttl             BIGINT,
   callback_target TEXT,
   settled_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -402,7 +411,7 @@ CREATE INDEX idx_jobs_precompile_type ON jobs (precompile_type);
 
 CREATE TABLE events (
   id            SERIAL PRIMARY KEY,
-  block_number  INTEGER NOT NULL,
+  block_number  BIGINT NOT NULL,
   tx_hash       TEXT NOT NULL,
   log_index     INTEGER NOT NULL,
   event_name    TEXT NOT NULL,
@@ -422,7 +431,7 @@ Key differences from a generic schema:
 - `precompile_type` maps integer addresses to readable names (hex-to-decimal: 0x0801=2049, 0x0802=2050, etc.)
 - `execution_model` distinguishes Short-Running (result in receipt) from Long-Running (result via callback)
 - `status` uses the canonical 9-state lifecycle names
-- `ttl` is persisted so expiry can be computed as `submitted_block + ttl` even if chain data is pruned
+- `ttl` is persisted so expiry can be computed as `commit_block + ttl` even if chain data is pruned
 - `callback_target` tracks where long-running async results will be delivered
 
 ---
