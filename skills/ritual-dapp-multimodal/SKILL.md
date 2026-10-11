@@ -1012,7 +1012,7 @@ import type { PublicClient } from 'viem';
 async function waitForMedia(
   publicClient: PublicClient,
   txHash: `0x${string}`,
-  maxWaitMs = 300_000,  // 5 minutes
+  maxWaitMs = 300_000,  // 5 minutes — override per modality (audio >= 300s, video >= 660s worst-case)
   pollIntervalMs = 10_000
 ) {
   const startTime = Date.now();
@@ -1316,11 +1316,15 @@ Where:
 
 ### TTL Recommendations
 
+> `ttl` caps at **500 blocks** (chain max — higher values are RPC-rejected).
+> Horizons beyond ~175s belong in `maxPollBlock` (up to 70000), not `ttl`.
+> Minimums below cover the generation-time column plus headroom.
+
 | Modality | Min TTL | Recommended TTL |
 |-----------|---------|-----------------|
-| Image | 60 blocks | 120 blocks |
-| Audio | 120 blocks | 300 blocks |
-| Video | 300 blocks | 600 blocks |
+| Image | 200 blocks (~70s) | 300 blocks (~105s) |
+| Audio | 300 blocks (~105s) | 500 blocks (~175s) |
+| Video | 500 blocks (~175s) | 500 blocks + `maxPollBlock` 900–1750 (~315–610s) |
 
 ---
 

@@ -205,9 +205,9 @@ If the TTL expires before settlement (short-running) or before Phase 2 delivery 
 |-----------|-----------------|
 | Submission → Commitment | 1-3 blocks (~0.35-1.05 seconds) |
 | HTTP call processing | 2-30 seconds |
-| LLM inference | 5-60 seconds |
+| LLM inference | 10-40 seconds |
 | Sovereign / persistent agent jobs | 30 seconds - 10 minutes |
-| Image generation | 10-120 seconds |
+| Image generation | 10-60 seconds |
 | Long-running HTTP | Minutes to hours |
 
 ## Custom Transaction Types

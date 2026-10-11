@@ -51,7 +51,7 @@ Before any example, lock these in:
 - Always call precompile `0x0802` with the full **30-field** ABI tuple. Submitting any other field count returns RPC `-32602 invalid async payload` and the tx never lands. See "Error Reference" for the full surface.
 - For current production, use **`zai-org/GLM-4.7-FP8`** only. It is a reasoning model with a hardcoded `<think>...</think>` chain-of-thought, which has two practical consequences:
   - Set `maxCompletionTokens` to **at least 4096**. The `<think>` block typically consumes 500–1500 tokens before the final answer is emitted; smaller caps risk returning empty `content` with `finish_reason: "length"`. 4096 is the recommended baseline for any substantive reply on this model.
-  - Set `ttl` to **at least 60 blocks** (300 is a safe default). Reasoning inference can take 10–40 seconds wall-clock; the default `30` blocks risks expiration.
+  - Set `ttl` to **at least 120 blocks** (~42s; 300 is a safe default, ~105s). Reasoning inference can take 10–40 seconds wall-clock (`ceil(40/0.35) = 115` blocks worst-case); both `30` (~10.5s) and `60` (~21s) risk expiration on slow tails.
 - `convoHistory` is a **StorageRef tuple**. See **`ritual-dapp-da`** for the full StorageRef contract — supported platforms (`gcs`, `hf`, `pinata`), path conventions per platform, credential JSON formats, the meaning of an empty `('', '', '')` tuple, and end-to-end DA debugging. Do not improvise from this skill alone — DA has its own surface area and `ritual-dapp-da` is the source of truth.
 - Conversation history is stored as **plaintext JSONL** — not DKMS-encrypted (unlike agent precompiles).
 - `piiEnabled` enables PII redaction mode and has extra requirements.
@@ -1548,7 +1548,7 @@ The error string returned in `error_message` is **freeform** — there is no str
 | Stream auth | `Authorization: Bearer {sig}` + `X-Timestamp` → `/v1/stream/{txHash}` |
 | EIP-712 domain | `{ name: 'Ritual Streaming Service', version: '1', chainId: 1979 }` |
 | Message format | OpenAI chat (JSON-encoded) |
-| Stream signature expiry | 5 minutes (60s future tolerance) |
+| Stream signature expiry | 5 minutes (300s) after timestamp; future tolerance ±60s |
 | Convo history DA | StorageRef `(platform, path, key_ref)` — supports `gcs` (default), `hf`, `pinata`. Stored as plaintext JSONL. See `ritual-dapp-da`. |
 | GCS convo history | Default for production agents: `('gcs', path, key_ref)` with credentials in `encryptedSecrets` |
 | ECIES nonce length (`eciesjs`) | `ECIES_CONFIG.symmetricNonceLength = 12` |

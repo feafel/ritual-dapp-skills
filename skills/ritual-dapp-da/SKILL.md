@@ -332,7 +332,7 @@ When storage operations fail (bad credentials, upload failure, network/provider 
 
 1. The result payload includes `hasError=true`.
 2. `errorMessage` explains the failure reason.
-3. DA-related failures settle with a **constant error fee**: `500,000,000,000 wei` (0.0000005 ETH), which is much smaller than a successful generation fee.
+3. DA-related failures settle with a **constant error fee**: `500,000,000,000 wei` (0.0000005 RITUAL), which is much smaller than a successful generation fee.
 4. Your app should treat `hasError=true` as a terminal state and surface the message to users.
 
 ### DA Errors Apply To
@@ -345,7 +345,7 @@ When storage operations fail (bad credentials, upload failure, network/provider 
 | FHE (0x0807) | Input/output storage credential failure, output upload failure |
 | LLM (0x0802) | Convo-history credential failure, convo-history upload failure |
 
-All DA-using precompiles settle with a constant error fee (500,000,000,000 wei / 0.0000005 ETH) when `hasError=true`: a small constant amount is deducted from escrow, far less than successful generation pricing.
+All DA-using precompiles settle with a constant error fee (500,000,000,000 wei / 0.0000005 RITUAL) when `hasError=true`: a small constant amount is deducted from escrow, far less than successful generation pricing.
 
 ### Handling DA Errors in Your Callback
 

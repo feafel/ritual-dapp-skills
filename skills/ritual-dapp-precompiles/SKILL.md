@@ -193,7 +193,7 @@ const encoded = encodeAbiParameters(
 );
 ```
 
-Rough deposit: 0.05 RITUAL (model-dependent, check ModelPricingRegistry).
+Rough deposit: 0.4–0.5 RITUAL for `zai-org/GLM-4.7-FP8` (escrow ~0.31 RIT per in-flight call — 0.05 covers ~16% of one escrow and the submission reverts; model-dependent, check ModelPricingRegistry).
 
 ---
 

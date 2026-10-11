@@ -152,7 +152,7 @@ The `ttl` field sets how many blocks the executor has to fulfill the request.
 
 - **Must be > 0.** Zero TTL is rejected at the RPC layer.
 - **Must be ≤ 500 blocks** (default `MAX_TTL_BLOCKS`, configurable per network). The RPC rejects higher values.
-- Typical value: `100n` (a few minutes on Ritual Chain).
+- Typical value: `300n`–`500n` (~105–175s, ~1.75–2.9min). `100n` is ~35s — fine for fast APIs, not multi-minute jobs.
 
 ### Step 4: Understand Async Output
 
