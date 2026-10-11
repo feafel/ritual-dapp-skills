@@ -283,10 +283,13 @@ export type ErrorCategory = "wallet" | "contract" | "async" | "network";
 
 ```typescript
 export function canTransition(from: AsyncTxStatus, to: AsyncTxStatus): boolean {
+  // Advisory only — updateState does NOT enforce this table (short-running
+  // jobs legitimately jump COMMITTED → SETTLED via JobRemoved, which skips
+  // the intermediate states). Use for UI gating/debugging, not as a guard.
   const valid: Record<AsyncTxStatus, AsyncTxStatus[]> = {
     SUBMITTING: ["PENDING_COMMITMENT", "FAILED"],
     PENDING_COMMITMENT: ["COMMITTED", "EXPIRED", "FAILED"],
-    COMMITTED: ["EXECUTOR_PROCESSING", "FAILED"],
+    COMMITTED: ["EXECUTOR_PROCESSING", "SETTLED", "FAILED"], // SETTLED: short-running JobRemoved path
     EXECUTOR_PROCESSING: ["RESULT_READY", "FAILED"],
     RESULT_READY: ["PENDING_SETTLEMENT", "SETTLED", "FAILED"],
     PENDING_SETTLEMENT: ["SETTLED", "FAILED"],
@@ -350,12 +353,39 @@ export const useAsyncTxStore = create<AsyncTxStore>()(
           transactions: Object.fromEntries(Object.entries(s.transactions).filter(([, tx]) => !isTerminalState(tx.state.status))),
         })),
     }),
-    { name: "ritual-async-tx" },
+    {
+      name: "ritual-async-tx",
+      partialize: (s) => serializeState(s),
+      merge: (persisted, current) =>
+        serializeState({ ...current, ...(persisted as object) } as AsyncTxStore),
+    },
   ),
 );
 ```
 
 Transactions survive page refresh. The `persist` middleware writes to localStorage keyed by `"ritual-async-tx"`.
+
+> **bigint breaks default persistence.** `AsyncTxSettled.gasUsed` is a `bigint`
+> and `JSON.stringify(1n)` throws — without the serializer below, the first
+> SETTLED update drops the persist write (history lost on refresh, console
+> error). The pair converts bigints to markers on save and revives them on
+> load; with no bigints present it is a passthrough.
+
+```typescript
+const serializeState = (s: AsyncTxStore): AsyncTxStore =>
+  JSON.parse(
+    JSON.stringify(s, (_, v) =>
+      typeof v === "bigint" ? { __bigint: v.toString() } : v,
+    ),
+    (_, v) =>
+      v && typeof v === "object" && "__bigint" in v
+        ? BigInt((v as { __bigint: string }).__bigint)
+        : v,
+  );
+```
+
+Pass both hooks to `persist` as shown in the store above (`partialize` on save,
+`merge` on load).
 
 ---
 
