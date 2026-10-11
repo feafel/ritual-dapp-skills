@@ -12,6 +12,7 @@ contract SovereignAgentConsumer {
 
     event SovereignAgentResultDelivered(bytes32 indexed jobId, bytes result);
 
+    /// @notice input must be helpers.py `build` REQUEST_INPUT (23-field 0x080C payload).
     function callSovereignAgent(bytes calldata input) external returns (bytes memory) {
         (bool ok, bytes memory output) = SOVEREIGN_AGENT.call(input);
         require(ok, "precompile call failed");

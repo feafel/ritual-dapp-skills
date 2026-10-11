@@ -63,8 +63,25 @@ export const ritualChain = defineChain({
 });
 ```
 
-### ChainGuard — Block UI on Wrong Chain
+### Manual `wallet_addEthereumChain` (no wagmi)
 
+For non-wagmi pages, add the chain with a hex chain ID — `1979` decimal is
+`0x7BB`. Decimal here makes the wallet reject the request:
+
+```typescript
+await window.ethereum.request({
+  method: "wallet_addEthereumChain",
+  params: [{
+    chainId: "0x7BB", // 1979 in hex — NOT "1979", NOT 1979
+    chainName: "Ritual",
+    nativeCurrency: { name: "RITUAL", symbol: "RITUAL", decimals: 18 },
+    rpcUrls: ["https://rpc.ritualfoundation.org"],
+    blockExplorerUrls: ["https://explorer.ritualfoundation.org"],
+  }],
+});
+```
+
+### ChainGuard — Block UI on Wrong Chain
 ```tsx
 import { useAccount, useSwitchChain } from "wagmi";
 import { ritualChain } from "@/lib/chain";

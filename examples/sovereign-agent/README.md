@@ -108,4 +108,4 @@ Before submission, run a provider-side model preflight check (model list/validat
 |------|---------|
 | `SovereignAgentConsumer.sol` | Minimal consumer contract with callback |
 | `run.sh` | One-shot orchestrator |
-| `helpers.py` | Request encoding, Phase 1 submission, Phase 2 polling |
+| `helpers.py` | Request encoding (`build` subcommand, 23-field 0x080C payload for `callSovereignAgent`), Phase 1 submission, Phase 2 polling |

@@ -90,6 +90,7 @@ Note: The projection skill (Step 1) will itself read the overview and precompile
 | Secrets / encryption | `skills/ritual-dapp-secrets/SKILL.md` |
 | X402 micropayments | `skills/ritual-dapp-x402/SKILL.md` |
 | Passkey auth | `skills/ritual-dapp-passkey/SKILL.md` |
+| DA / StorageRef | `skills/ritual-dapp-da/SKILL.md` |
 
 **Always read (in order, after feature skills):**
 
@@ -196,6 +197,7 @@ For direct routing when the user names a specific topic:
 | Fee management | `ritual-dapp-skills:ritual-dapp-wallet` |
 | X402 payments | `ritual-dapp-skills:ritual-dapp-x402` |
 | Passkey auth | `ritual-dapp-skills:ritual-dapp-passkey` |
+| DA / StorageRef | `ritual-dapp-skills:ritual-dapp-da` |
 
 ## Numbered Menu Routing (for Step 3)
 

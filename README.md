@@ -127,6 +127,8 @@ The system has two entry points, three skill classes, and 10 behavioral protocol
 | `ritual-dapp-secrets`     | ECIES encryption, SECRET_NAME string replacement, PII redaction, delegated ACL | Cross-cutting                     |
 | `ritual-dapp-x402`        | X402 micropayments via HTTP                                                    | Pay-per-call APIs                 |
 | `ritual-dapp-passkey`     | SECP256R1 (0x0100) + TxPasskey (0x77)                                          | Synchronous                       |
+| `ritual-dapp-block-time`  | Block-time math / TTL conversions (~350ms baseline)                            | Cross-cutting                     |
+| `ritual-dapp-da`          | StorageRef DA (hf/gcs/pinata), convo-history payloads                          | Cross-cutting                     |
 
 ### Smart Contracts (α)
 
@@ -229,6 +231,8 @@ ritual-dapp-skills/
 │   ├── ritual-dapp-secrets/            # α — Secret management + PII redaction
 │   ├── ritual-dapp-x402/               # α — Micropayments
 │   ├── ritual-dapp-passkey/            # α — Passkey authentication
+│   ├── ritual-dapp-block-time/         # α — Block-time math / TTL conversion
+│   ├── ritual-dapp-da/                 # α — StorageRef DA (hf/gcs/pinata)
 │   ├── ritual-dapp-frontend/           # α — React/Next.js frontend
 │   ├── ritual-dapp-backend/            # α — Backend services
 │   ├── ritual-dapp-testing/            # α/β — Testing patterns

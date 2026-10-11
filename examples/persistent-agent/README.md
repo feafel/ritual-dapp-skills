@@ -135,7 +135,7 @@ export DA_PINATA_GATEWAY=https://your-gateway.mypinata.cloud
 - `AGENT_RUNTIME` — `zeroclaw` (default) or `hermes`
 - `EXECUTOR_TEE_ADDRESS` — optional debug override; default flow discovers a live executor from `TEEServiceRegistry`
 - `CONSUMER_ADDRESS` — reuse an already-deployed consumer contract
-- `PHASE2_TIMEOUT`, `PHASE1_GAS_LIMIT`
+- `PHASE2_TIMEOUT`, `PHASE1_GAS_LIMIT`, `PHASE1_TIMEOUT` (DKMS poll, default 300)
 - `RELAY_URL` — optional relay for post-spawn chat verification (no default; set your own endpoint)
 - `VERIFY_RELAY` — `1` to send a test message via relay after spawn
 
@@ -189,4 +189,5 @@ bash run.sh
 |------|---------|
 | `PersistentAgentConsumer.sol` | Minimal consumer contract with DKMS + persistent-agent helpers |
 | `run.sh` | One-shot orchestrator |
-| `helpers.py` | DKMS request encoding, persistent request encoding, and Phase 2 / relay polling |
+| `helpers.py` | DKMS request encoding (`build-dkms-request`, 8-field 0x081B payload for `callDKMSKey`), persistent request encoding (`build-persistent-request`, 26-field 0x0820 payload for `callPersistentAgent`), and Phase 2 / relay polling |
+| | NOTE: `PrecompileCalled` / `DkmsKeyResult` events are debug-only — poll `PersistentAgentResultDelivered` (Phase 2) and receipt `spcCalls` (DKMS) instead; do not index the former |

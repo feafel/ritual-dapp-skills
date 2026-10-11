@@ -110,6 +110,10 @@ Load the relevant alpha skill when deeper reference is needed:
 | Frontend state machine | `ritual-dapp-frontend` |
 | Testing patterns | `ritual-dapp-testing` |
 | Verification checks | `ritual-meta-verification` |
+| ML inference | `ritual-dapp-onnx` |
+| Signatures | `ritual-dapp-ed25519` |
+| Passkey auth | `ritual-dapp-passkey` |
+| Block-time / DA | `ritual-dapp-block-time`, `ritual-dapp-da` |
 
 ## Escalation
 

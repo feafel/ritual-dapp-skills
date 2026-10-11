@@ -137,6 +137,10 @@ Which Ritual Chain features does your dApp need?
 [ ] Delegated secrets    — Shared API keys with access control
 [ ] X402 micropayments   — Automatic paid API access
 [ ] ZK proofs            — Verifiable computation (0x0806)
+[ ] ML inference         — ONNX (0x0800)
+[ ] Signatures           — Ed25519 (0x0009)
+[ ] Passkey auth         — SECP256R1/TxPasskey (0x0100)
+[ ] Cross-cutting        — Block-time math, DA StorageRef
 ```
 
 ### Step 3: Confirm Preferences
@@ -423,11 +427,11 @@ Every frontend the agent generates must handle all 9 states with appropriate UI.
 Post-Build Verification
   [ ] RPC connectivity — can the server reach https://rpc.ritualfoundation.org (or custom RPC)?
   [ ] Contract deployment — are deployed contract addresses valid and code is non-empty?
-  [ ] Contract reads — do view functions (e.g., getMarkets, getMarketCount) return expected data?
+  [ ] Contract reads — do view functions (e.g., `owner()`, `lastResult()`, or your dApp's primary view fn) return expected data?
   [ ] Frontend serving — does the frontend dev server return HTTP 200?
   [ ] Frontend rendering — does the page contain expected content (not empty state / zero data)?
   [ ] RPC proxy route — if the frontend proxies RPC calls, does the proxy route respond?
-  [ ] Wallet params — are wallet_addEthereumChain params correct (chainId, rpcUrls, blockExplorerUrls)?
+  [ ] Wallet params — are `wallet_addEthereumChain` params correct (`chainId: '0x7BB'` = 1979 hex, `rpcUrls`, `blockExplorerUrls`)? See the snippet in `ritual-dapp-frontend` Chain Configuration.
   [ ] RitualWallet balance — does the deployer account have sufficient RITUAL deposited?
   [ ] Executor availability — are executors registered for the precompiles the dApp uses?
 ```
@@ -487,6 +491,10 @@ When a user selects a feature, load the corresponding skills:
 | Private outputs      | ECIES encryption     | `ritual-dapp-secrets`     |
 | Delegated secrets    | SecretsAccessControl | `ritual-dapp-secrets`     |
 | X402 micropayments   | X402 HTTP flow       | `ritual-dapp-x402`        |
+| ML inference         | `0x0800`             | `ritual-dapp-onnx`        |
+| Signatures           | `0x0009`             | `ritual-dapp-ed25519`     |
+| Passkey auth         | `0x0100`             | `ritual-dapp-passkey`     |
+| Block-time / DA      | cross-cutting        | `ritual-dapp-block-time`, `ritual-dapp-da` |
 | ZK proofs            | `0x0806`             | `ritual-dapp-zk`          |
 
 **Cross-cutting skills** loaded for every build:

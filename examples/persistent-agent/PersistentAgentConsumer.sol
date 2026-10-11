@@ -17,6 +17,7 @@ contract PersistentAgentConsumer {
     event PersistentAgentResultDelivered(bytes32 indexed jobId, bytes result);
     event DkmsKeyResult(bytes result);
 
+    /// @notice input must be helpers.py `build-persistent-request` REQUEST_INPUT (26-field 0x0820 payload).
     function callPersistentAgent(bytes calldata input) external returns (bytes memory) {
         (bool ok, bytes memory output) = PERSISTENT_AGENT.call(input);
         require(ok, "persistent precompile call failed");
@@ -24,6 +25,7 @@ contract PersistentAgentConsumer {
         return output;
     }
 
+    /// @notice input must be helpers.py `build-dkms-request` output (8-field 0x081B payload).
     function callDKMSKey(bytes calldata input) external returns (bytes memory) {
         (bool ok, bytes memory output) = DKMS_KEY.call(input);
         require(ok, "dkms precompile call failed");

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -195,15 +196,47 @@ def inline_ref(content: str):
     return ("inline", content, "") if content else empty_ref()
 
 
+_HF_REPO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _validate_hf_repo_id(value: str) -> str:
+    """HuggingFace IDs must be `user/repo`. Reject placeholders and malformed
+    values loudly here instead of ABI-encoding garbage into the on-chain request."""
+    if not value or value.strip() != value:
+        print(
+            "ERROR: --hf-repo-id is required and must be a non-empty HuggingFace "
+            "dataset ID in the form 'user/repo' (e.g. 'alice/my-agent-workspace').",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if "<" in value or ">" in value or "YOUR_" in value or "YOUR-" in value:
+        print(
+            f"ERROR: --hf-repo-id looks like an unfilled placeholder ({value!r}).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if not _HF_REPO_ID_PATTERN.match(value):
+        print(
+            f"ERROR: --hf-repo-id ({value!r}) is not a valid 'user/repo' ID.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return value
+
+
 def build_da_config(da_provider: str) -> tuple[tuple[str, str, str], dict[str, str]]:
     secrets: dict[str, str] = {}
 
     if da_provider == "hf":
         hf_token = os.getenv("HF_TOKEN", "")
         hf_repo_id = os.getenv("HF_REPO_ID", "")
-        if not hf_token or not hf_repo_id:
-            print("ERROR: DA_PROVIDER=hf requires HF_TOKEN and HF_REPO_ID", file=sys.stderr)
+        if not hf_token:
+            print("ERROR: DA_PROVIDER=hf requires HF_TOKEN", file=sys.stderr)
             sys.exit(1)
+        # Strict user/repo validation (same rule as the sovereign example):
+        # a bare `myrepo` would otherwise ABI-encode fine and fail only
+        # inside the executor, after funding + spawn.
+        hf_repo_id = _validate_hf_repo_id(hf_repo_id)
         secrets["HF_TOKEN"] = hf_token
         return ("hf", hf_repo_id, "HF_TOKEN"), secrets
 
