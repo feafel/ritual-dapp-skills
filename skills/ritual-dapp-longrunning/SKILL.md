@@ -415,8 +415,23 @@ contract LongRunningHTTPConsumer {
     /// @dev The function selector must match deliverySelector exactly.
     ///      AsyncDelivery invokes: target.call(abi.encodeWithSelector(selector, jobId, result)).
     ///      Your callback must accept BOTH parameters: (bytes32 jobId, bytes result).
+    ///
+    ///      SECURITY — Callback Spoofing:
+    ///      Checking msg.sender == ASYNC_DELIVERY_SENDER is necessary but NOT
+    ///      sufficient. An attacker can submit a job with:
+    ///        deliveryTarget = yourContract
+    ///        deliverySelector = yourCallbackSelector
+    ///      The callback arrives from AsyncDelivery (legitimate sender) for a
+    ///      job YOU NEVER SUBMITTED. To prevent this, track pending jobIds:
+    ///      1. When you submit a job, record the expected jobId (= tx.hash)
+    ///         in a pendingJobs mapping (populated after tx is mined).
+    ///      2. In this callback, require(pendingJobs[jobId]) and delete it
+    ///         before processing (CEI pattern).
+    ///      3. Alternatively, use a JobRegistry contract (see below).
     function onLongRunningResult(bytes32 jobId, bytes calldata result) external {
         require(msg.sender == ASYNC_DELIVERY_SENDER, "unauthorized callback");
+        // require(pendingJobs[jobId], "unknown jobId");  // ← ADD THIS
+        // delete pendingJobs[jobId];                     // ← AND THIS (CEI)
 
         // Result is an HTTPCallResponse: (statusCode, headerKeys, headerValues, body, errorMessage)
         (uint16 statusCode, , , bytes memory body, string memory errorMessage) =

@@ -626,6 +626,9 @@ contract MediaConsumer {
 
     modifier onlyAsyncSystem() {
         require(msg.sender == ASYNC_DELIVERY_SENDER, "unauthorized callback");
+        // NOTE: msg.sender check alone is insufficient against callback spoofing.
+        // An attacker can set deliveryTarget=yourContract in their own job.
+        // Add pending job validation (see ritual-dapp-longrunning Security section).
         _;
     }
 
