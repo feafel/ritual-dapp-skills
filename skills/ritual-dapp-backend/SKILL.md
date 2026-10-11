@@ -80,8 +80,8 @@ Before submitting, check sender lock status using `IAsyncJobTracker.hasPendingJo
 
 Your backend must route result extraction based on execution model. See the precompile table in `ritual-dapp-contracts` for which precompiles use which model.
 
-- **Short-running async** (HTTP 0x0801, LLM 0x0802): Result is in the transaction receipt's `spcCalls` field. See section 2 below.
-- **Long-running async** (Long HTTP, Image, Audio, Video, ZK, Persistent Agent, Sovereign Agent): Result arrives via callback to your consumer contract. Watch for your contract's result events.
+- **Short-running async** (HTTP 0x0801, LLM 0x0802, DKMS 0x081B): Result is in the transaction receipt's `spcCalls` field. See section 2 below.
+- **Long-running async** (Long HTTP, Image, Audio, Video, ZK, FHE, Persistent Agent, Sovereign Agent): Result arrives via callback to your consumer contract. Watch for your contract's result events.
 
 ### Canonical 9-State Job Lifecycle
 
@@ -209,6 +209,26 @@ async function decodeJobResult(job: { precompile: number; txHash: string }) {
       };
     }
 
+    case 0x081b: {
+      // DKMS is short-running async: unwrap the (bytes simmedInput,
+      // bytes actualOutput) envelope first, then decode (address, bytes).
+      const [, actualOutput] = decodeAbiParameters(
+        [{ type: 'bytes' }, { type: 'bytes' }],
+        spc.output,
+      );
+      if (!actualOutput || actualOutput === '0x') return null;
+      const [derivedAddress, keyData] = decodeAbiParameters(
+        [{ type: 'address' }, { type: 'bytes' }],
+        actualOutput as Hex,
+      );
+      return {
+        type: 'dkms',
+        address: derivedAddress,
+        keyData,
+        error: null,
+      };
+    }
+
     default:
       return { type: 'unknown', raw: spc.output };
   }
@@ -221,7 +241,7 @@ When your event watcher detects settlement, immediately extract and store the de
 
 ```typescript
 async function onJobSettled(jobId: string, txHash: string, precompile: number) {
-  const isShortRunningAsync = [0x0801, 0x0802].includes(precompile);
+  const isShortRunningAsync = [0x0801, 0x0802, 0x081b].includes(precompile);
 
   if (isShortRunningAsync) {
     const decoded = await decodeJobResult({ precompile, txHash });
@@ -381,7 +401,7 @@ CREATE TABLE jobs (
     END
   ) STORED,
   execution_model TEXT GENERATED ALWAYS AS (
-    CASE WHEN precompile IN (2049, 2050) THEN 'Short-Running' ELSE 'Long-Running' END
+    CASE WHEN precompile IN (2049, 2050, 2075) THEN 'Short-Running' ELSE 'Long-Running' END
   ) STORED,
   status          TEXT NOT NULL DEFAULT 'SUBMITTING',
   result          JSONB,

@@ -152,7 +152,7 @@ Ritual precompile calls pass through up to 9 states from submission to settlemen
 | EXPIRED | — | Derived (current block > commit block + TTL); confirmed by cleanup `JobRemoved(completed=false)` |
 
 > **What `Phase1Settled` actually means (it's a footgun).** This event does NOT mean the underlying job is done. It is emitted from `AsyncJobTracker.markPhase1Settled` only for **long-running** precompiles, after `AsyncDelivery.settle` has paid the executor + validators for Phase 1. At that point:
-> - **Short-running** (HTTP, LLM, ONNX, JQ, DKMS, …): `Phase1Settled` is **never emitted**. The result is already in the receipt's `spcCalls` and `JobRemoved(completed=true)` fires instead.
+> - **Short-running** (HTTP, LLM, DKMS): `Phase1Settled` is **never emitted**. The result is already in the receipt's `spcCalls` and `JobRemoved(completed=true)` fires instead. (ONNX, JQ, Ed25519, SECP256R1 are synchronous — no async lifecycle at all.)
 > - **Long-running** (Long HTTP, Sovereign Agent, Persistent Agent, Image / Audio / Video, ZK, FHE): `Phase1Settled` means the executor has *committed to starting* the off-chain work and the Phase 2 deadline is now armed. The actual job result lands later via `ResultDelivered` + `Delivered`. For these jobs, the "Phase 1 result" is just the **task ID**, not the final payload.
 >
 > So map `Phase1Settled → RESULT_READY` only for long-running async, and treat `RESULT_READY` as "executor accepted the job" rather than "result available".
