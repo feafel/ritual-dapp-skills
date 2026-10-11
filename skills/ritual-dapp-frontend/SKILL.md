@@ -636,7 +636,7 @@ export function useRitualWallet() {
     return hash;
   }, [write]);
 
-  return { balance, balanceFormatted: balance ? formatEther(balance) : "0", lockUntilBlock, deposit, withdraw, isConfirming, refetchBalance };
+  return { balance, balanceFormatted: balance !== undefined ? formatEther(balance) : "...", lockUntilBlock, deposit, withdraw, isConfirming, refetchBalance };
 }
 ```
 
