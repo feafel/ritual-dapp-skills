@@ -66,18 +66,26 @@ If no callback logs: verify selector (`cast sig "handleCallback(bytes32,bytes)"`
 
 ### Step 4: Job State
 
+The tracker has no numeric status enum (no NONE/PENDING/COMMITTED/SETTLED —
+that table was invented). Triage with the real view functions:
+
 ```bash
-cast call 0xC069FFCa0389f44eCA2C626e55491b0ab045AEF5 \
-  "getJob(bytes32)(uint8,address,address,uint256,uint256,bytes)" \
-  <JOB_ID> --rpc-url https://rpc.ritualfoundation.org
+TRACKER=0xC069FFCa0389f44eCA2C626e55491b0ab045AEF5
+RPC=https://rpc.ritualfoundation.org
+# Sender still locked? (any in-flight async job)
+cast call $TRACKER "hasPendingJobForSender(address)(bool)" <SENDER> --rpc-url $RPC
+# Long-running Phase 1 done?
+cast call $TRACKER "isPhase1Settled(bytes32)(bool)" <JOB_ID> --rpc-url $RPC
+# Full struct (Job memory + 2x bytes, 14 fields) — decode with the
+# IAsyncJobTracker ABI from ritual-dapp-contracts, not a hand-made tuple.
+cast call $TRACKER "getJob(bytes32)" <JOB_ID> --rpc-url $RPC
 ```
 
-| State | Value | Meaning | Next |
-|-------|-------|---------|------|
-| NONE | 0 | Job never created | Step 1 — TX reverted |
-| PENDING | 1 | Waiting for executor | Check TTL; step 6 |
-| COMMITTED | 2 | Executor computing | Wait; recheck TTL if slow |
-| SETTLED | 3 | Delivered, callback pending | Step 3 |
+| Signal | Meaning | Next |
+|-------|---------|------|
+| `hasPendingJobForSender` true | Job still in flight | Check TTL; step 6 |
+| `isPhase1Settled` true | Phase 1 fees paid, Phase 2 deadline armed | Wait for callback |
+| `getJob` reverts "not found" | Settled+removed (short-running) or cleaned up | Check `JobRemoved(completed)` |
 | COMPLETED | 4 | Done | Check callback event logs |
 | FAILED | 5 | Executor error | Inspect settlement TX logs |
 | EXPIRED | 6 | TTL exceeded | Increase TTL, check step 6 |

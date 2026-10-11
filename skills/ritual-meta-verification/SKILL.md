@@ -160,7 +160,7 @@ For checks with deterministic fixes, the protocol specifies the exact transforma
 | # | Check | Tier | Confidence | Command | Auto-Fix |
 |---|-------|------|-----------|---------|----------|
 | 1 | Balance > 0 | T3 | HIGH | `cast call 0x532F...3948 "balanceOf(address)(uint256)" $USER --rpc-url $RITUAL_RPC_URL` | Prompt deposit |
-| 2 | Lock duration adequate | T3 | MEDIUM | `cast call 0x532F...3948 "lockUntil(address)(uint256)" $USER` — must be > current block + expected TTL | Re-deposit with longer lock |
+| 2 | Lock duration adequate | T3 | MEDIUM | `cast call 0x532F...3948 "lockUntil(address)(uint256)" $USER --rpc-url $RITUAL_RPC_URL` — must be > current block + expected TTL | Re-deposit with longer lock |
 | 3 | Fee sufficiency | T3 | MEDIUM | Compare balance against: HTTP=2.5e12+byte_fees, LLM=5e12+token_fees per planned call | Deposit more RITUAL |
 
 **Pass condition:** Check 1 must pass. Checks 2-3 are warnings.
@@ -198,7 +198,7 @@ For checks with deterministic fixes, the protocol specifies the exact transforma
 | # | Check | Tier | Confidence | Command | Auto-Fix |
 |---|-------|------|-----------|---------|----------|
 | 1 | Correct precompile for use case | T1 | HIGH | If code has persistence/memory/soul concepts AND uses 0x080C (not 0x0820), FAIL | Switch to Persistent Agent (0x0820) |
-| 2 | Delivery selector matches callback | T1 | HIGH | Compute `cast sig "onAgentResult(bytes32,bytes)"` and compare to encoded selector | Recompute with `cast sig` |
+| 2 | Delivery selector matches callback | T1 | HIGH | Compute `cast sig "onSovereignAgentResult(bytes32,bytes)"` (0x080C) or `cast sig "onPersistentAgentResult(bytes32,bytes)"` (0x0820) and compare to that precompile's encoded selector (`onAgentResult` exists nowhere — the check would bless a wrong selector) | Recompute with `cast sig` |
 | 3 | Delivery gas ≥ 200,000 | T1 | MEDIUM | Extract deliveryGasLimit value | Increase to 3,000,000 for state-writing callbacks |
 | 4 | Executor availability (capability 0) | T2 | HIGH | `cast call TEEServiceRegistry.getServicesByCapability(0, true)` | Wait or check RPC |
 
@@ -495,7 +495,7 @@ HAS_ERROR=$(... decode bool from output ...)
 **Fail means:** Callback didn't fire (wrong selector, wrong deliveryTarget, insufficient delivery gas), or callback reverted silently.
 
 ```bash
-STORED_RESULT=$(cast call $CONTRACT_ADDRESS "getResult(bytes32)(string)" $JOB_ID --rpc-url $RITUAL_RPC_URL)
+STORED_RESULT=$(cast call $CONTRACT_ADDRESS "getResult(bytes32)(uint16,bytes,string,uint256)" $JOB_ID --rpc-url $RITUAL_RPC_URL)  # JobResult struct, not string
 [ -n "$STORED_RESULT" ] || exit 10
 ```
 
