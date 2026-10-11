@@ -399,7 +399,10 @@ contract LongRunningHTTPConsumer {
 
     /// @notice Submit a long-running HTTP job
     /// @param encodedRequest ABI-encoded LongRunningHTTPCallRequest
-    function initiateJob(bytes calldata encodedRequest) external payable {
+    // NOTE: nonpayable on purpose — the precompile is paid from RitualWallet,
+    // never from msg.value. A payable signature would let users lock funds
+    // here with no withdraw path.
+    function initiateJob(bytes calldata encodedRequest) external {
         (bool ok, bytes memory rawOutput) = LONG_RUNNING_HTTP_PRECOMPILE.call(
             encodedRequest
         );
@@ -474,7 +477,7 @@ contract AIResearchConsumer is LongRunningHTTPConsumer {
     function submitResearch(
         bytes calldata encodedRequest,
         string calldata query
-    ) external payable {
+    ) external { // nonpayable: see initiateJob note — no msg.value path exists
         (bool ok, bytes memory rawOutput) = LONG_RUNNING_HTTP_PRECOMPILE.call(
             encodedRequest
         );

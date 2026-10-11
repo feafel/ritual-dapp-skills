@@ -391,8 +391,11 @@ contract ParameterizedMockTest is Test {
         mock.setResponse(keccak256(input1), abi.encode(input1, inner1));
         mock.setResponse(keccak256(input2), abi.encode(input2, inner2));
 
-        (, bytes memory r1) = HTTP_PRECOMPILE.call(input1);
-        (, bytes memory r2) = HTTP_PRECOMPILE.call(input2);
+        // Never discard the success flag: decoding the return of a failed
+        // call tests garbage and masks mock misconfiguration.
+        (bool ok1, bytes memory r1) = HTTP_PRECOMPILE.call(input1);
+        (bool ok2, bytes memory r2) = HTTP_PRECOMPILE.call(input2);
+        require(ok1 && ok2, "Precompile call failed");
 
         (, bytes memory out1) = abi.decode(r1, (bytes, bytes));
         (, bytes memory out2) = abi.decode(r2, (bytes, bytes));

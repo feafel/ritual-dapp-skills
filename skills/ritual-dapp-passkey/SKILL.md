@@ -394,18 +394,30 @@ contract WebAuthnVerifier {
         uint256 pubKeyY;
     }
 
-    mapping(bytes32 => StoredCredential) public credentials; // credentialId → key
+    // Keyed by keccak256(rawId): raw WebAuthn credential IDs are variable
+    // length (often 32-64+ bytes) — a bytes32 parameter truncates/collides them.
+    mapping(bytes32 => StoredCredential) public credentials; // keccak(id) → key
+    mapping(bytes32 => address) public credentialOwner; // keccak(id) → registrant
 
-    function registerCredential(bytes32 credentialId, uint256 x, uint256 y) external {
-        credentials[credentialId] = StoredCredential(x, y);
+    function registerCredential(bytes calldata credentialId, uint256 x, uint256 y) external {
+        bytes32 idHash = keccak256(credentialId);
+        // Creation-only + ownership: without this anyone can overwrite any
+        // credentialId with their own key and then pass verifyAssertion as
+        // the victim (the mapping is keyed by attacker-chosen id).
+        require(
+            credentialOwner[idHash] == address(0) || credentialOwner[idHash] == msg.sender,
+            "credential taken"
+        );
+        credentialOwner[idHash] = msg.sender;
+        credentials[idHash] = StoredCredential(x, y);
     }
 
     function verifyAssertion(
-        bytes32 credentialId,
+        bytes calldata credentialId,
         bytes32 challenge,
         WebAuthn.WebAuthnAuth calldata auth
     ) external view returns (bool) {
-        StoredCredential memory cred = credentials[credentialId];
+        StoredCredential memory cred = credentials[keccak256(credentialId)];
         return WebAuthn.verify(
             abi.encodePacked(challenge), // expected challenge bytes
             true,                        // requireUserVerification
@@ -529,6 +541,7 @@ contract PasskeyAccessControl {
     }
 
     mapping(address => P256Key) public authorizedKeys;
+    mapping(bytes32 => bool) public usedSignatures; // replay nullifier
 
     event KeyRegistered(address indexed account, bytes32 x, bytes32 y);
     event ActionExecuted(address indexed account, bytes32 actionHash);
@@ -540,20 +553,31 @@ contract PasskeyAccessControl {
 
     function executeWithPasskey(
         bytes calldata message,
+        uint256 nonce,
+        uint256 deadlineBlock,
         bytes calldata signature
     ) external {
         P256Key memory key = authorizedKeys[msg.sender];
         require(key.x != bytes32(0), "No key registered");
+        // Bind the signature to this chain, this contract, the caller, a
+        // caller-chosen nonce and a block deadline — then consume it. The old
+        // raw-message form replayed forever once observed.
+        require(block.number <= deadlineBlock, "Signature expired");
+        bytes32 h = keccak256(abi.encode(
+            block.chainid, address(this), msg.sender, message, nonce, deadlineBlock
+        ));
+        require(!usedSignatures[h], "Signature already used");
+        usedSignatures[h] = true;
 
         // Build uncompressed pubkey: 0x04 || x || y
         bytes memory pubkey = abi.encodePacked(bytes1(0x04), key.x, key.y);
-        bytes memory input = abi.encode(pubkey, message, signature);
+        bytes memory input = abi.encode(pubkey, abi.encodePacked(h), signature);
 
         (bool success, bytes memory result) = SECP256R1.staticcall(input);
         require(success && result.length > 0, "Verification call failed");
         require(abi.decode(result, (uint256)) == 1, "Invalid passkey signature");
 
-        emit ActionExecuted(msg.sender, keccak256(message));
+        emit ActionExecuted(msg.sender, h);
     }
 }
 ```
@@ -1009,8 +1033,8 @@ contract PasskeyWithRecovery {
         bytes32 passkeyX;
         bytes32 passkeyY;
         address recoveryAddress;
-        uint256 recoveryDelay;
-        uint256 recoveryInitiatedAt;
+        uint256 recoveryDelayBlocks;
+        uint256 recoveryInitiatedAtBlock;
         bytes32 pendingX;
         bytes32 pendingY;
     }
@@ -1022,8 +1046,13 @@ contract PasskeyWithRecovery {
     event RecoveryCancelled(address indexed account);
     event PasskeyRotated(address indexed account, bytes32 newX, bytes32 newY);
 
-    function register(bytes32 x, bytes32 y, address recoveryAddr, uint256 delay) external {
-        accounts[msg.sender] = Account(x, y, recoveryAddr, delay, 0, 0, 0);
+    // Delay is counted in BLOCKS, not seconds: Ritual block.timestamp units
+    // are milliseconds on some deployments and seconds-style on others (see
+    // the open timestamp-units discussion), so a seconds delay is ambiguous
+    // by ~1000x. block.number is unambiguous everywhere: 7 days ~= 1.7M
+    // blocks at the 350ms baseline (604800 / 0.35 ~= 1,728,000).
+    function register(bytes32 x, bytes32 y, address recoveryAddr, uint256 delayBlocks) external {
+        accounts[msg.sender] = Account(x, y, recoveryAddr, delayBlocks, 0, 0, 0);
         emit PasskeyRegistered(msg.sender, x, y);
     }
 
@@ -1031,27 +1060,27 @@ contract PasskeyWithRecovery {
         Account storage acct = accounts[target];
         require(msg.sender == acct.recoveryAddress, "Not recovery address");
 
-        acct.recoveryInitiatedAt = block.timestamp;
+        acct.recoveryInitiatedAtBlock = block.number;
         acct.pendingX = newX;
         acct.pendingY = newY;
-        emit RecoveryInitiated(target, block.timestamp + acct.recoveryDelay);
+        emit RecoveryInitiated(target, block.number + acct.recoveryDelayBlocks);
     }
 
     function executeRecovery(address target) external {
         Account storage acct = accounts[target];
-        require(acct.recoveryInitiatedAt > 0, "No recovery pending");
-        require(block.timestamp >= acct.recoveryInitiatedAt + acct.recoveryDelay, "Delay not elapsed");
+        require(acct.recoveryInitiatedAtBlock > 0, "No recovery pending");
+        require(block.number >= acct.recoveryInitiatedAtBlock + acct.recoveryDelayBlocks, "Delay not elapsed");
 
         acct.passkeyX = acct.pendingX;
         acct.passkeyY = acct.pendingY;
-        acct.recoveryInitiatedAt = 0;
+        acct.recoveryInitiatedAtBlock = 0;
         emit PasskeyRotated(target, acct.pendingX, acct.pendingY);
     }
 
     function cancelRecovery() external {
         Account storage acct = accounts[msg.sender];
-        require(acct.recoveryInitiatedAt > 0, "No recovery pending");
-        acct.recoveryInitiatedAt = 0;
+        require(acct.recoveryInitiatedAtBlock > 0, "No recovery pending");
+        acct.recoveryInitiatedAtBlock = 0;
         emit RecoveryCancelled(msg.sender);
     }
 }
