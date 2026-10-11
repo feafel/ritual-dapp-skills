@@ -151,7 +151,7 @@ const encoded = encodeAbiParameters(
     false,                   // stream
     700n, '0x', '0x', -1n, 1000n, '',
     false,                   // piiEnabled
-    ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'], // convoHistory: REQUIRED — GCS credentials must be in encryptedSecrets under key_ref
+    ['', '', ''], // convoHistory: stateless — no DA, no secrets needed (see GCS example below for persistent sessions)
   ],
 );
 
@@ -216,7 +216,7 @@ const encoded = encodeAbiParameters(
     900n,                   // topP (0.9 × 1000)
     '',                     // user
     false,                  // piiEnabled
-    ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'], // convoHistory: REQUIRED — GCS credentials must be in encryptedSecrets under key_ref
+    ['', '', ''], // convoHistory: stateless — no DA, no secrets needed (see GCS example below for persistent sessions)
   ],
 );
 
@@ -250,7 +250,7 @@ const depositHash = await walletClient.writeContract({
   }] as const,
   functionName: 'deposit',
   args: [5000n],
-  value: parseEther('0.02'),
+  value: parseEther('0.5'), // >=0.4 RIT: ~0.31 escrow per in-flight GLM-4.7-FP8 call + headroom
 });
 
 // Step 2: Submit the LLM inference directly to the precompile
@@ -269,12 +269,62 @@ const encoded = encodeAbiParameters(
       { role: 'user', content: 'Summarize the latest crypto news' },
     ]),
     'zai-org/GLM-4.7-FP8',
-    0n, '', false, 1024n, '', '',
+    0n, '', false, 4096n, '', '',
     1n, true, 0n, 'medium', '0x', -1n, 'auto', '',
     false,                   // stream
     700n, '0x', '0x', -1n, 1000n, '',
     false,                   // piiEnabled
-    ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'], // convoHistory: REQUIRED — GCS credentials must be in encryptedSecrets under key_ref
+    ['', '', ''], // convoHistory: stateless — no DA, no secrets needed (see GCS example below for persistent sessions)
+  ],
+);
+
+const hash = await walletClient.sendTransaction({
+  to: LLM_PRECOMPILE,
+  data: encoded,
+  gas: 3_000_000n,
+});
+```
+
+### With GCS Conversation History (ECIES)
+
+Persistent sessions need DA credentials: encrypt a JSON blob containing `GCS_CREDS` to the executor's public key, sign it, and reference the key in `convoHistory`. Stateless `['', '', '']` from the examples above cannot be combined with a GCS path.
+
+```typescript
+import { encodeAbiParameters, parseAbiParameters, toHex } from 'viem';
+import { encrypt } from 'eciesjs';
+
+// executorAddress + executorPublicKey from getServicesByCapability (see ritual-dapp-secrets)
+const gcsCreds = JSON.parse(process.env.GCS_CREDENTIALS_JSON!);
+const secretsJson = JSON.stringify({ GCS_CREDS: gcsCreds });
+const encryptedBuffer = encrypt(executorPublicKey.slice(2), Buffer.from(secretsJson));
+const encryptedSecrets = [`0x${encryptedBuffer.toString('hex')}` as `0x${string}`];
+const signature = await walletClient.signMessage({
+  account: account.address,
+  message: { raw: encryptedSecrets[0] },
+});
+
+const encoded = encodeAbiParameters(
+  parseAbiParameters([
+    'address, bytes[], uint256, bytes[], bytes,',
+    'string, string, int256, string, bool, int256, string, string,',
+    'uint256, bool, int256, string, bytes, int256, string, string, bool,',
+    'int256, bytes, bytes, int256, int256, string, bool,',
+    '(string,string,string)',
+  ].join('')),
+  [
+    executorAddress,
+    encryptedSecrets,      // non-empty: GCS_CREDS JSON under key_ref below
+    300n,
+    [signature],           // one EIP-191 signature per blob
+    '0x',
+    JSON.stringify([{ role: 'user', content: 'Continue our analysis.' }]),
+    'zai-org/GLM-4.7-FP8',
+    0n, '', false, 4096n, '', '',
+    1n, true, 0n, 'medium', '0x', -1n, 'auto', '',
+    false,
+    700n, '0x', '0x', -1n, 1000n, '',
+    false,
+    ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'],
   ],
 );
 
@@ -341,7 +391,7 @@ const encoded: Hex = encodeAbiParameters(
     1000n,                  // topP (1.0 × 1000)
     '',                     // user
     false,                  // piiEnabled
-    ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'], // convoHistory: REQUIRED — GCS credentials must be in encryptedSecrets under key_ref
+    ['', '', ''], // convoHistory: stateless — no DA, no secrets needed (see GCS example below for persistent sessions)
   ],
 );
 ```
@@ -559,7 +609,7 @@ const encoded = encodeAbiParameters(
     false,                   // stream
     500n, '0x', '0x', -1n, 1000n, '',
     false,                   // piiEnabled
-    ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'], // convoHistory: REQUIRED — GCS credentials must be in encryptedSecrets under key_ref
+    ['', '', ''], // convoHistory: stateless — no DA, no secrets needed (see GCS example below for persistent sessions)
   ],
 );
 ```
@@ -661,7 +711,7 @@ const encoded = encodeAbiParameters(
     false,                   // stream
     300n, '0x', '0x', -1n, 1000n, '',
     false,                   // piiEnabled
-    ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'], // convoHistory: REQUIRED — GCS credentials must be in encryptedSecrets under key_ref
+    ['', '', ''], // convoHistory: stateless — no DA, no secrets needed (see GCS example below for persistent sessions)
   ],
 );
 
@@ -864,12 +914,12 @@ async function streamLLM(prompt: string) {
       [], 60n, [], '0x',
       JSON.stringify([{ role: 'user', content: prompt }]),
       'zai-org/GLM-4.7-FP8',
-      0n, '', false, 2048n, '', '',
+      0n, '', false, 4096n, '', '',
       1n, true, 0n, 'medium', '0x', -1n, 'auto', '',
       true,                    // stream — MUST be true for streaming
       700n, '0x', '0x', -1n, 1000n, '',
       false,                   // piiEnabled (PII + streaming is incompatible)
-      ['gcs', 'convos/my-session.jsonl', 'GCS_CREDS'], // convoHistory: REQUIRED — GCS credentials must be in encryptedSecrets under key_ref
+      ['', '', ''], // convoHistory: stateless — no DA, no secrets needed (see GCS example below for persistent sessions)
     ],
   );
 
