@@ -6,7 +6,7 @@ version: 1.0.0
 
 # X402 Micropayments — Paid API Access Patterns
 
-X402 (named after HTTP 402 Payment Required) enables pay-per-call access to premium APIs through Ritual's HTTP precompile. Instead of managing API subscriptions off-chain, dApps submit encrypted payment credentials with an HTTP request. The TEE executor decrypts them, makes the paid call, and returns the result — all in a single on-chain transaction.
+X402 (named after HTTP 402 Payment Required) enables pay-per-call access to premium APIs through Ritual's HTTP precompile. Instead of managing API subscriptions off-chain, dApps submit encrypted payment credentials with an HTTP request. The TEE executor decrypts them and makes the paid call. Settlement looks synchronous from your contract's perspective (fulfilled replay), but on-chain it is 3 transactions: commitment + deferred-tx re-execution + settlement — see ritual-dapp-overview.
 
 ### Why X402?
 
@@ -23,7 +23,7 @@ X402 (named after HTTP 402 Payment Required) enables pay-per-call access to prem
 3. **Executor decrypts**: Inside the TEE, the executor decrypts payment credentials
 4. **String replacement**: Executor replaces `SECRET_NAME` placeholders in URL, headers, and body with decrypted values
 5. **Make paid call**: Executor calls the premium API with real credentials
-6. **Return result**: Result is settled on-chain in the same transaction; payment credentials are never exposed
+6. **Return result**: Result is settled via fulfilled replay (your deferred tx re-executed with the result injected); payment credentials are never exposed
 
 ## When to Use vs When NOT to Use
 
@@ -121,8 +121,9 @@ const x402Payload = JSON.stringify({
   BILLING_TOKEN: process.env.BILLING_TOKEN,
 });
 
-// 2. Encrypt to executor's pubkey (lookup via TEEServiceRegistry.getNodePublicKey)
-const encrypted = encrypt(executorPublicKey.slice(2), Buffer.from(x402Payload));
+// 2. Encrypt to executor's pubkey (node.publicKey from getServicesByCapability;
+//    eciesjs accepts the 0x-hex key directly)
+const encrypted = encrypt(executorPublicKey, Buffer.from(x402Payload));
 const encryptedHex = `0x${Buffer.from(encrypted).toString('hex')}`;
 
 // 3. Sign the encrypted blob
@@ -133,7 +134,7 @@ const signature = await account.signMessage({ message: { raw: encrypted } });
 //    secretSignatures: [signature]
 ```
 
-The `executorPublicKey` comes from the TEE Service Registry at `0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F` via `getNodePublicKey(executorAddress)`. To find available executors, query `getServicesByCapability(0, true)` for HTTP_CALL-capable executors — see `ritual-dapp-http` section 10. See `ritual-dapp-secrets` for the full encryption flow.
+The `executorPublicKey` comes from the TEE Service Registry at `0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F` via `getServicesByCapability(0, true)` (take `node.publicKey` — there is no `getNodePublicKey` getter). See `ritual-dapp-http` §1 (executor selection) and `ritual-dapp-secrets` for the full encryption flow.
 
 **Multiple secrets:** The `encryptedSecrets` array can hold multiple blobs. Typically you encrypt a single JSON object with all credential keys and pass it as a single-element array. Multiple entries are for cases where different secrets are encrypted to different executor public keys (e.g., a multi-executor setup). For most X402 dApps, use `[encryptedHex]` (single element).
 
@@ -147,12 +148,12 @@ When building an X402 dApp, follow this order:
 2. **Select an executor** — Query `TEEServiceRegistry.getServicesByCapability(0, true)` to find executors with HTTP_CALL capability. See `ritual-dapp-http` section 10 for the full lookup pattern. Pick one and note its `teeAddress` (the executor address) and `publicKey` (for ECIES encryption).
 3. **Encrypt credentials** — Build the JSON payload, encrypt with ECIES to the executor's public key, sign with your account (see "Constructing the Encrypted Secrets" above).
 4. **Encode the HTTP precompile call** — Use the ABI parameter layout table above. Fill slots 1, 3, 5, 8, 9, and 12 with X402-specific values. Set slots 10–11 (dKMS) to zero.
-5. **Send the transaction** — Call the consumer contract or send directly to `0x0801`. The result comes back **in the same transaction** via inline settlement (not a callback).
+5. **Send the transaction** — Call the consumer contract or send directly to `0x0801`. The result comes back via fulfilled replay (looks like the same transaction from your contract's perspective, but the builder re-executes the deferred tx — not a callback).
 6. **Decode the response** — The precompile returns `(bytes, bytes)` where the second element decodes to `(uint16 status, string[] headerKeys, string[] headerValues, bytes body, string errorMessage)`. See `ritual-dapp-http` for the full decoding pattern.
 
 ### Response Format (Inline Settlement)
 
-The HTTP precompile (0x0801) does **NOT** use callbacks. The result is settled inline in the same transaction — your contract receives it as the return value of `HTTP_PRECOMPILE.call(input)`:
+The HTTP precompile (0x0801) does **NOT** use callbacks. The result reaches your contract as the return value of `HTTP_PRECOMPILE.call(input)` when the builder re-executes your deferred transaction with the settled output injected (fulfilled replay) — it looks inline, but 3 on-chain transactions happened:
 
 ```solidity
 (bool success, bytes memory rawOutput) = HTTP_PRECOMPILE.call(input);
