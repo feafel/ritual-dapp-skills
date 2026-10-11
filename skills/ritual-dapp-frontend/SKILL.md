@@ -887,54 +887,66 @@ export function useStreamingLLM(streamingServiceUrl = "https://streaming.ritualf
   const stream = useCallback(async (txHash: `0x${string}`) => {
     if (!walletClient) return;
 
-    setState((s) => ({ ...s, status: "signing", txHash }));
+    setState({ status: "signing", txHash, text: "", tokens: 0, error: undefined });
 
-    const timestamp = BigInt(Math.floor(Date.now() / 1000));
-    const signature = await walletClient.signTypedData({
-      domain: { name: "Ritual Streaming Service", version: "1", chainId: 1979 },
-      types: { StreamRequest: [{ name: "txHash", type: "bytes32" }, { name: "timestamp", type: "uint256" }] },
-      primaryType: "StreamRequest",
-      message: { txHash, timestamp },
-    });
+    try {
+      const timestamp = BigInt(Math.floor(Date.now() / 1000));
+      const signature = await walletClient.signTypedData({
+        domain: { name: "Ritual Streaming Service", version: "1", chainId: 1979 },
+        types: { StreamRequest: [{ name: "txHash", type: "bytes32" }, { name: "timestamp", type: "uint256" }] },
+        primaryType: "StreamRequest",
+        message: { txHash, timestamp },
+      });
 
-    setState((s) => ({ ...s, status: "streaming" }));
+      setState((s) => ({ ...s, status: "streaming" }));
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
-    // Uses path param + auth headers (NOT query params) — matches LLM skill SSE pattern.
-    // Cannot use EventSource because it doesn't support custom headers.
-    const response = await fetch(`${streamingServiceUrl}/v1/stream/${txHash}`, {
-      headers: {
-        "Accept": "text/event-stream",
-        "Authorization": `Bearer ${signature}`,
-        "X-Timestamp": timestamp.toString(),
-      },
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`Stream HTTP ${response.status}`);
+      // Uses path param + auth headers (NOT query params) — matches LLM skill SSE pattern.
+      // Cannot use EventSource because it doesn't support custom headers.
+      const response = await fetch(`${streamingServiceUrl}/v1/stream/${txHash}`, {
+        headers: {
+          "Accept": "text/event-stream",
+          "Authorization": `Bearer ${signature}`,
+          "X-Timestamp": timestamp.toString(),
+        },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Stream HTTP ${response.status}`);
 
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop()!;
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const payload = line.slice(6);
-        if (payload === "[DONE]") { setState((s) => ({ ...s, status: "done" })); return; }
-        const data = JSON.parse(payload);
-        if (data.type === "token" && data.content) {
-          setState((s) => ({ ...s, text: s.text + data.content, tokens: s.tokens + 1 }));
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!;
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6);
+          if (payload === "[DONE]") { setState((s) => ({ ...s, status: "done" })); return; }
+          const data = JSON.parse(payload);
+          if (data.type === "token" && data.content) {
+            setState((s) => ({ ...s, text: s.text + data.content, tokens: s.tokens + 1 }));
+          }
+          if (data.type === "error") { setState((s) => ({ ...s, status: "error", error: data.error })); return; }
         }
-        if (data.type === "error") { setState((s) => ({ ...s, status: "error", error: data.error })); return; }
       }
+      setState((s) => ({ ...s, status: "done" }));
+    } catch (err) {
+      // Without this, a rejected signature, HTTP 401/500, bad JSON, or a dead
+      // stream leaves the UI stuck in signing/streaming forever.
+      // User-initiated abort is not an error — stop() already set "done".
+      if (abortControllerRef.current?.signal.aborted) return;
+      setState((s) => ({
+        ...s,
+        status: "error",
+        error: err instanceof Error ? err.message : "Stream failed",
+      }));
     }
-    setState((s) => ({ ...s, status: "done" }));
   }, [walletClient, streamingServiceUrl]);
 
   const stop = useCallback(() => { abortControllerRef.current?.abort(); setState((s) => ({ ...s, status: "done" })); }, []);
