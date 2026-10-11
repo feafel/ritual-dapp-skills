@@ -458,23 +458,39 @@ import { encodeAbiParameters, decodeAbiParameters } from 'viem';
 ```typescript
 import { keccak256, concat, toHex, toBytes, getAddress } from 'viem';
 
-async function passkeyLogin() {
-  // 1. Request WebAuthn assertion
-  const challenge = crypto.getRandomValues(new Uint8Array(32));
+function base64UrlEncode(bytes: Uint8Array): string {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function passkeyLogin(
+  serverChallenge: Uint8Array, // 32 fresh bytes from YOUR server/nonce store — never generate-and-forget client-side
+  expectedOrigin: string,      // e.g. 'https://your-dapp.com' — never accept cross-origin assertions
+) {
+  // 1. Request WebAuthn assertion against the server challenge
   const assertion = await navigator.credentials.get({
     publicKey: {
-      challenge,
+      challenge: serverChallenge,
       userVerification: 'required',
     },
   }) as PublicKeyCredential;
 
   const response = assertion.response as AuthenticatorAssertionResponse;
 
-  // 2. Extract signature components
+  // 2. Verify clientDataJSON BEFORE touching crypto: ceremony type, challenge
+  //    echo, and origin. Skipping this accepts cross-origin/replayed assertions.
+  const clientData = JSON.parse(new TextDecoder().decode(response.clientDataJSON));
+  if (clientData.type !== 'webauthn.get') throw new Error('Wrong ceremony type');
+  if (clientData.challenge !== base64UrlEncode(serverChallenge)) throw new Error('Challenge mismatch (replay?)');
+  if (clientData.origin !== expectedOrigin) throw new Error('Cross-origin assertion');
+  // Mark serverChallenge consumed in your nonce store here (single-use).
+
+  // 3. Extract signature components
   const { r, s } = parseDerSignature(new Uint8Array(response.signature));
   const normalizedS = normalizeS(s);
 
-  // 3. Derive Ritual Chain address from stored public key
+  // 4. Derive Ritual Chain address from stored public key
   //    (public key must be stored during registration)
   const storedKey = localStorage.getItem(`passkey:${assertion.id}`);
   if (!storedKey) throw new Error('Unknown credential — register first');
@@ -484,11 +500,16 @@ async function passkeyLogin() {
     `0x${keccak256(concat([toBytes(x), toBytes(y)])).slice(26)}`
   );
 
-  // 4. Verify signature on-chain (optional — the chain verifies TxPasskey natively)
+  // 5. Verify signature on-chain (optional — the chain verifies TxPasskey natively).
+  //    WebAuthn signs SHA256(authData || SHA256(clientDataJSON)), NOT the raw
+  //    challenge — verifying SHA256(challenge) can never pass. Rebuild the
+  //    exact signed bytes and let the precompile do its internal SHA-256.
+  const clientDataHash = new Uint8Array(await crypto.subtle.digest('SHA-256', response.clientDataJSON));
+  const signedMessage = concat([new Uint8Array(response.authenticatorData), clientDataHash]);
   const pubkeyUncompressed = concat([toBytes('0x04'), toBytes(x), toBytes(y)]);
   const isValid = await verifyP256OnChain(
     toHex(pubkeyUncompressed),
-    toHex(challenge),
+    toHex(signedMessage),
     toHex(concat([r, normalizedS]))
   );
 
