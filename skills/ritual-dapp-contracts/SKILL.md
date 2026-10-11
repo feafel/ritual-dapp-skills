@@ -59,7 +59,7 @@ cast code "0xD4AA9D55215dc8149Af57605e70921Ea16b73591" --rpc-url "$RPC_URL"
 | `0x0818` | Image Generation | Async (long-running) | 18 | `ritual-dapp-multimodal` |
 | `0x0819` | Audio Generation | Async (long-running) | 18 | `ritual-dapp-multimodal` |
 | `0x081A` | Video Generation | Async (long-running) | 18 | `ritual-dapp-multimodal` |
-| `0x081B` | DKMS Key Derivation | Async | 8 | — |
+| `0x081B` | DKMS Key Derivation | Async (short-running) | 8 | — |
 | `0x0820` | Persistent Agent | Async (long-running) | 26 | `ritual-dapp-agents` |
 | `0x0009` | Ed25519 Verify | Synchronous | 3 | `ritual-dapp-ed25519` |
 | `0x0100` | SECP256R1/P-256 | Synchronous | 3 | `ritual-dapp-passkey` |
@@ -220,7 +220,7 @@ function isPhase1Settled(bytes32 jobId) external view returns (bool);
 
 `hasPendingJobForSender` is the canonical sender lock check — call it before submitting any async transaction. `isLongRunning` tells you if a job uses long-running async delivery. `isPhase1Settled` tells you if Phase 1 settlement happened (long-running async only).
 
-There is also `getJob(bytes32) returns (Job memory, bytes memory, bytes memory)` which returns a 14-field struct for advanced status reconciliation. The `Job` struct has `commitBlock` and `ttl` fields — compute expiry as `commitBlock + ttl` (there is no `expiryBlock` field or getter). For short-running async precompiles (HTTP, LLM, DKMS), settlement removes the job and `getJob` reverts with "not found". See `ritual-dapp-backend` for the full polling pattern.
+There is also `getJob(bytes32) returns (Job memory, bytes memory, bytes memory)` which returns `(Job memory, bytes memory, bytes memory)` for advanced status reconciliation. The `Job` struct has `commitBlock` and `ttl` fields — compute expiry as `commitBlock + ttl` (there is no `expiryBlock` field or getter). For short-running async precompiles (HTTP, LLM, DKMS), settlement removes the job and `getJob` reverts with "not found". See `ritual-dapp-backend` for the full polling pattern.
 
 ---
 
@@ -232,7 +232,7 @@ GET=1, POST=2, PUT=3, DELETE=4, PATCH=5, HEAD=6, OPTIONS=7. Method code 0 is inv
 
 ### Short-Running Async Output Envelope
 
-All short-running async precompiles (0x0801, 0x0802) return a two-layer envelope:
+All short-running async HTTP/LLM precompiles (0x0801, 0x0802) return a two-layer envelope (DKMS 0x081B is short-running for lifecycle purposes but returns `(address, bytes)` directly — no envelope; see `ritual-dapp-agents` DKMS section):
 
 ```solidity
 (bytes memory simmedInput, bytes memory actualOutput) = abi.decode(raw, (bytes, bytes));
@@ -241,7 +241,8 @@ All short-running async precompiles (0x0801, 0x0802) return a two-layer envelope
 The inner `actualOutput` is precompile-specific. For HTTP (5 fields):
 
 ```solidity
-(uint16 statusCode, string[] headerKeys, string[] headerValues, bytes body, string errorMessage)
+(uint16 statusCode, string[] headerKeys, string[] headerValues, bytes body, string errorMessage) =
+    abi.decode(actualOutput, (uint16, string[], string[], bytes, string));
 ```
 
 ### Long-Running Async Base Fields
@@ -430,7 +431,7 @@ function test_walletDeposit() public {
 | Max HTTP response size | 5 KB |
 | Max long-running calls per tx | 1 |
 | Max async commits per sender per block | 1 |
-| Sender lock | Until Phase 1 settlement |
+| Sender lock | Until settlement (Phase 1 settlement for long-running; short-running has no Phase 1) |
 | Scheduler: only contracts can schedule | EOAs cannot call `schedule()` |
 | Scheduler: `frequency >= 1` | Required |
 | Scheduler: `startBlock > block.number` | Required |

@@ -514,7 +514,7 @@ All long-running async precompiles (except ZK and Sovereign Agent which have the
 | 12 | `uint256` | deliveryMaxPriorityFeePerGas |
 | 13 | `uint256` | deliveryValue |
 
-All Phase 2 callbacks have signature: `function onResult(bytes32 jobId, bytes calldata result) external`
+All Phase 2 callbacks have shape `(bytes32 jobId, bytes result)` — the exact name/selector is per integration (`onLongRunningResult` for 0x0805, `onZKResultDelivered` for 0x0806, `onPersistentAgentResult`/`onSovereignAgentResult` for agents) and must match `deliverySelector`
 `msg.sender` is always `0x5A16214fF555848411544b005f7Ac063742f39F6` (AsyncDelivery).
 
 ---
