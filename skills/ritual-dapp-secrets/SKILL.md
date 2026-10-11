@@ -203,7 +203,8 @@ import { parseAbiParameters } from 'viem';
 
 const HTTP_CALL_ABI = parseAbiParameters([
   'address, bytes[], uint256, bytes[], bytes,',
-  'string, uint8, string[], string[], bytes, bool',
+  'string, uint8, string[], string[], bytes, bool,',
+  'uint256, uint8',
 ].join(''));
 ```
 
@@ -239,6 +240,8 @@ const encoded = encodeAbiParameters(HTTP_CALL_ABI, [
     messages: [{ role: 'user', content: 'Hello' }],
   })),
   false,                                           // piiEnabled (independent from substitution)
+  0n,                                           // dkmsKeyIndex (0 = not using dKMS)
+  0,                                            // dkmsKeyFormat (0 = default)
 ]);
 
 // The executor decrypts API_KEY and replaces every literal API_KEY match
@@ -258,6 +261,8 @@ const encoded = encodeAbiParameters(HTTP_CALL_ABI, [
   [], [],                                           // no extra headers
   new Uint8Array(0),                                // no body
   false,                                            // piiEnabled (optional, unrelated)
+  0n,                                           // dkmsKeyIndex (0 = not using dKMS)
+  0,                                            // dkmsKeyFormat (0 = default)
 ]);
 ```
 
@@ -279,6 +284,8 @@ const encoded = encodeAbiParameters(HTTP_CALL_ABI, [
     data: { message: 'Hello from Ritual' },
   })),
   false,                                            // piiEnabled (optional, unrelated)
+  0n,                                           // dkmsKeyIndex (0 = not using dKMS)
+  0,                                            // dkmsKeyFormat (0 = default)
 ]);
 ```
 
@@ -312,6 +319,8 @@ const encoded = encodeAbiParameters(HTTP_CALL_ABI, [
   ['Bearer OPENAI_KEY', 'PINECONE_KEY', 'CUSTOM_HEADER'],
   new TextEncoder().encode(JSON.stringify({ query: 'Find similar documents' })),
   false,                                          // piiEnabled (optional, unrelated)
+  0n,                                           // dkmsKeyIndex (0 = not using dKMS)
+  0,                                            // dkmsKeyFormat (0 = default)
 ]);
 ```
 
@@ -483,6 +492,8 @@ const encoded = encodeAbiParameters(HTTP_CALL_ABI, [
   [], [],          // no extra headers
   new Uint8Array(0),
   false,           // piiEnabled — set to true only for PII redaction
+  0n,                                           // dkmsKeyIndex (0 = not using dKMS)
+  0,                                            // dkmsKeyFormat (0 = default)
 ]);
 
 // ... submit to precompile
@@ -557,6 +568,8 @@ async function getPrivateHoroscope(zodiacSign: string) {
     ['Bearer HOROSCOPE_API_KEY'],
     new Uint8Array(0),
     false,           // piiEnabled (optional, unrelated)
+    0n,                                           // dkmsKeyIndex (0 = not using dKMS)
+    0,                                            // dkmsKeyFormat (0 = default)
   ]);
 
   // 4. Submit to precompile
@@ -887,6 +900,8 @@ const encoded = encodeAbiParameters(HTTP_CALL_ABI, [
   ['Bearer API_KEY'],
   new Uint8Array(0),
   false,                     // piiEnabled (optional, unrelated)
+  0n,                                           // dkmsKeyIndex (0 = not using dKMS)
+  0,                                            // dkmsKeyFormat (0 = default)
 ]);
 
 // tx.origin = your address (the delegate)
