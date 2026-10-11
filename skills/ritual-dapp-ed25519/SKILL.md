@@ -80,7 +80,7 @@ contract Ed25519Verifier {
 ```typescript
 import { encodeAbiParameters, decodeAbiParameters, createPublicClient, http } from 'viem';
 
-const ED25519 = '0x0000000000000000000000000000000000000009';
+const ED25519 = '0x0000000000000000000000000000000000000009' as const;
 
 function encodeEd25519Verify(
   pubkey: `0x${string}`,

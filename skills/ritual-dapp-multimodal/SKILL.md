@@ -433,8 +433,12 @@ const secretsJson = JSON.stringify({
   }),
 });
 
+// From Executor Discovery below: services[0] key as 0x-hex
+// (eciesjs accepts the hex key directly).
+const executorPublicKey = '0x04...' as `0x${string}`;
+
 const encryptedSecrets = `0x${encrypt(
-  executorPublicKey.slice(2),
+  executorPublicKey,
   Buffer.from(secretsJson),
 ).toString('hex')}` as `0x${string}`;
 ```
@@ -444,7 +448,15 @@ const encryptedSecrets = `0x${encrypt(
 Before creating `encryptedSecrets`, fetch the executor's public key from the TEEServiceRegistry:
 
 ```typescript
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, defineChain } from 'viem';
+
+const ritualChain = defineChain({
+  id: 1979,
+  name: 'Ritual',
+  nativeCurrency: { name: 'RITUAL', symbol: 'RITUAL', decimals: 18 },
+  rpcUrls: { default: { http: [process.env.RITUAL_RPC_URL!] } },
+});
+const publicClient = createPublicClient({ chain: ritualChain, transport: http() });
 
 const TEE_SERVICE_REGISTRY = '0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F' as const;
 const IMAGE_CAPABILITY = 7;  // Capability enum: 7 = IMAGE_CALL

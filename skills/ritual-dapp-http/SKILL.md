@@ -520,7 +520,7 @@ Use this when you need API keys/tokens inside URL/headers/body without exposing 
 
 ```typescript
 import { encrypt, ECIES_CONFIG } from 'eciesjs';
-import { hexToBytes } from 'viem';
+import { hexToBytes, toHex, type Hex } from 'viem';
 
 ECIES_CONFIG.symmetricNonceLength = 12; // see ritual-dapp-secrets
 

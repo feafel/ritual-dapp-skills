@@ -120,6 +120,7 @@ Then configure wagmi transport:
 
 ```typescript
 import { createConfig, http } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { ritualChain } from "./chain";
 
 export const wagmiConfig = createConfig({
@@ -491,6 +492,10 @@ const asyncJobTrackerAbi = [
 ] as const;
 
 export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enabled?: boolean }) {
+  // NOTE: useWatchContractEvent has no `enabled` prop in wagmi v2 — an
+  // `enabled:` key in the options is a type error and is silently ignored at
+  // runtime. To disable watching, mount this hook conditionally in the parent
+  // ({shouldWatch && <Tracker txId={txId} />}) instead of passing a flag.
   const { address } = useAccount();
   const updateState = useAsyncTxStore((s) => s.updateState);
   const getTransaction = useAsyncTxStore((s) => s.getTransaction);
@@ -499,7 +504,6 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
     address: ASYNC_JOB_TRACKER,
     abi: asyncJobTrackerAbi,
     eventName: "JobAdded",
-    enabled: enabled && !!address,
     onLogs: (logs) => {
       for (const log of logs) {
         if (log.args.senderAddress?.toLowerCase() !== address?.toLowerCase()) continue;
@@ -520,7 +524,6 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
     address: ASYNC_JOB_TRACKER,
     abi: asyncJobTrackerAbi,
     eventName: "Phase1Settled",
-    enabled: enabled && !!address,
     onLogs: (logs) => {
       for (const log of logs) {
         const tx = getTransaction(txId);
@@ -541,7 +544,6 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
     address: ASYNC_JOB_TRACKER,
     abi: asyncJobTrackerAbi,
     eventName: "ResultDelivered",
-    enabled: enabled && !!address,
     onLogs: (logs) => {
       for (const log of logs) {
         const tx = getTransaction(txId);
@@ -1042,13 +1044,22 @@ export function useAgentCall() {
 When a submit flow requires sequential transactions (deposit → register → submit), stale nonces cause `"replacement transaction underpriced"`. Fetch the confirmed nonce at the start and increment:
 
 ```typescript
-import { usePublicClient } from "wagmi";
+import { usePublicClient, useSendTransaction } from "wagmi";
+import type { PublicClient } from "viem";
 
-async function multiTxFlow(publicClient: ReturnType<typeof usePublicClient>, userAddress: `0x${string}`) {
-  let nonce = await publicClient!.getTransactionCount({ address: userAddress, blockTag: "pending" });
+async function multiTxFlow(
+  publicClient: PublicClient,
+  sendTransactionAsync: ReturnType<typeof useSendTransaction>["sendTransactionAsync"],
+  userAddress: `0x${string}`,
+  WALLET: `0x${string}`,
+  CONTRACT: `0x${string}`,
+  depositData: `0x${string}`,
+  submitData: `0x${string}`,
+) {
+  let nonce = await publicClient.getTransactionCount({ address: userAddress, blockTag: "pending" });
 
   const hash1 = await sendTransactionAsync({ to: WALLET, data: depositData, nonce });
-  await publicClient!.waitForTransactionReceipt({ hash: hash1 });
+  await publicClient.waitForTransactionReceipt({ hash: hash1 });
   nonce++;
 
   const hash2 = await sendTransactionAsync({ to: CONTRACT, data: submitData, nonce });

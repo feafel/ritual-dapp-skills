@@ -548,9 +548,11 @@ const INITIAL_STATE: AsyncJobState = {
   progressPercent: 0,
 };
 
+import type { Abi } from 'viem';
+
 interface UseAsyncJobOptions {
   consumerAddress: `0x${string}`;
-  consumerAbi: readonly unknown[];
+  consumerAbi: Abi;
 }
 
 export function useAsyncJob({
@@ -952,10 +954,17 @@ await walletClient.writeContract({
 Most real-world APIs require authentication. Use encrypted secrets with the `SECRET_NAME` string replacement pattern:
 
 ```typescript
-import { createPublicClient, http, encodeAbiParameters } from 'viem';
+import { createPublicClient, http, defineChain, encodeAbiParameters } from 'viem';
 import { encrypt } from 'eciesjs';
 
-// ritualChain and publicClient setup — same as Section 1
+// ritualChain setup — same as Section 1
+const ritualChain = defineChain({
+  id: 1979,
+  name: 'Ritual',
+  nativeCurrency: { name: 'RITUAL', symbol: 'RITUAL', decimals: 18 },
+  rpcUrls: { default: { http: [process.env.RITUAL_RPC_URL!] } },
+});
+const publicClient = createPublicClient({ chain: ritualChain, transport: http() });
 
 const TEE_SERVICE_REGISTRY = '0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F' as const;
 const CAPABILITY_HTTP = 0;
