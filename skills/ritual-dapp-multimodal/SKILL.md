@@ -79,6 +79,15 @@ await walletClient.writeContract({
   value: parseEther('0.15'),  // ~0.15 RITUAL per IMAGE request
 });
 
+// One EIP-191 signature per encrypted blob — required whenever
+// encryptedSecrets is non-empty, even when signer == tx.origin
+// (see ritual-dapp-secrets). Empty secrets -> empty signatures.
+const signatures = await Promise.all(
+  encryptedSecrets.map((blob) =>
+    walletClient.signMessage({ account, message: { raw: blob } }),
+  ),
+);
+
 // Submit image generation via your consumer contract
 const hash = await walletClient.writeContract({
   address: consumerContractAddress,
@@ -93,6 +102,7 @@ const hash = await walletClient.writeContract({
     1024,                  // height
     ['gcs', 'images/model', 'GCS_CREDS'], // outputStorageRef
     encryptedSecrets,      // encrypted storage credentials
+    signatures,            // one EIP-191 signature per blob (see ritual-dapp-secrets)
   ],
   gas: 800_000n,
 });
@@ -115,6 +125,7 @@ const hash = await walletClient.writeContract({
     10_000,                // maxDurationMs
     ['gcs', 'images/model', 'GCS_CREDS'], // outputStorageRef
     encryptedSecrets,      // encrypted storage credentials
+    signatures,            // one EIP-191 signature per blob (see ritual-dapp-secrets)
   ],
   gas: 800_000n,
 });
@@ -137,6 +148,7 @@ const hash = await walletClient.writeContract({
     3_000,                 // durationMs (see “Wan T2V / cached DiT” below)
     ['gcs', 'images/model', 'GCS_CREDS'], // outputStorageRef
     encryptedSecrets,      // encrypted storage credentials
+    signatures,            // one EIP-191 signature per blob (see ritual-dapp-secrets)
   ],
   gas: 800_000n,
 });
@@ -158,13 +170,14 @@ The video backend pre-warms a **cached DiT** (diffusion transformer) for a singl
 ### Encoding a MultiModal Request
 
 ```typescript
-import { encodeAbiParameters, type Address, type Hex } from 'viem';
+import { encodeAbiParameters, toHex, type Address, type Hex } from 'viem';
 
 const executor: Address = '0x...';
 
-const textInputData = new TextEncoder().encode(
+// ABI bytes fields take hex, not Uint8Array (viem rejects byte arrays here)
+const textInputData = toHex(new TextEncoder().encode(
   'Cyberpunk cityscape at night, neon reflections'
-);
+));
 
 // IMPORTANT: Use tuple types for inputs (ModalInput[]) and output (OutputConfig).
 // Flat scalar encoding (20 fields) will fail at the executor's decoder.
@@ -206,8 +219,7 @@ const encoded = encodeAbiParameters(
       { name: 'fps', type: 'uint8' },
       { name: 'negativePrompt', type: 'string' },
     ]},
-    { type: 'tuple', components: [{ type: 'string' }, { type: 'string' }, { type: 'string' }] }, // outputStorageRef
-    { type: 'bytes[]' },   // encryptedSecrets
+    { type: 'tuple', components: [{ type: 'string' }, { type: 'string' }, { type: 'string' }] }, // outputStorageRef (field 17, last)
   ],
   [
     executor,
@@ -225,14 +237,13 @@ const encoded = encodeAbiParameters(
     100_000_000n,                // deliveryMaxPriorityFeePerGas
     0n,                          // deliveryValue
     'black-forest-labs/FLUX.2-klein-4B',
-    [{ inputType: 0, data: `0x${Buffer.from(textInputData).toString('hex')}`, uri: '',
+    [{ inputType: 0, data: textInputData, uri: '',
        contentHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
        param1: 0, param2: 0, encrypted: false }],
     { outputType: 1, maxParam1: 1024, maxParam2: 1024, maxParam3: 0,
       encryptOutput: false, numInferenceSteps: 0, guidanceScaleX100: 0,
       seed: 0, fps: 0, negativePrompt: '' },
     outputStorageRef,            // StorageRef tuple: ['gcs', 'images/model', 'GCS_CREDS']
-    encryptedSecrets,            // ECIES-encrypted JSON containing GCS_CREDS
   ]
 );
 ```
@@ -661,6 +672,15 @@ contract MediaConsumer {
         bool encrypted;
     }
 
+    /// @dev DA reference for agent/TEE storage (StorageRef tuple).
+    ///      platform: 'gcs' | 'hf' | 'pinata'; keyRef names the credential
+    ///      in encryptedSecrets. See ritual-dapp-da.
+    struct StorageRef {
+        string platform;
+        string path;
+        string keyRef;
+    }
+
     mapping(bytes32 => MediaResult) public results;
     bytes32[] public resultIds;
 
@@ -687,13 +707,15 @@ contract MediaConsumer {
         uint32 width,
         uint32 height,
         StorageRef calldata outputStorageRef,
-        bytes[] calldata encryptedSecrets
+        bytes[] calldata encryptedSecrets,
+        bytes[] calldata secretSignatures
     ) external {
         bytes memory input = _buildMultiModalInput(
             executor, ttl, prompt, model,
             width, height, 0,  // no duration for images
             outputStorageRef,
             encryptedSecrets,
+            secretSignatures,
             "IMAGE_TASK_ID",
             this.onImageReady.selector,
             1  // outputType: IMAGE
@@ -718,13 +740,15 @@ contract MediaConsumer {
         string calldata model,
         uint32 maxDurationMs,
         StorageRef calldata outputStorageRef,
-        bytes[] calldata encryptedSecrets
+        bytes[] calldata encryptedSecrets,
+        bytes[] calldata secretSignatures
     ) external {
         bytes memory input = _buildMultiModalInput(
             executor, ttl, prompt, model,
             maxDurationMs, 0, 0,
             outputStorageRef,
             encryptedSecrets,
+            secretSignatures,
             "AUDIO_TASK_ID",
             this.onAudioReady.selector,
             2  // outputType: AUDIO
@@ -749,13 +773,15 @@ contract MediaConsumer {
         uint32 height,
         uint32 durationMs,
         StorageRef calldata outputStorageRef,
-        bytes[] calldata encryptedSecrets
+        bytes[] calldata encryptedSecrets,
+        bytes[] calldata secretSignatures
     ) external {
         bytes memory input = _buildMultiModalInput(
             executor, ttl, prompt, model,
             width, height, durationMs,
             outputStorageRef,
             encryptedSecrets,
+            secretSignatures,
             "VIDEO_TASK_ID",
             this.onVideoReady.selector,
             3  // outputType: VIDEO
@@ -891,6 +917,7 @@ contract MediaConsumer {
         uint32 param3,
         StorageRef calldata outputStorageRef,
         bytes[] calldata encryptedSecrets,
+        bytes[] calldata secretSignatures,
         string memory taskMarker,
         bytes4 callbackSelector,
         uint8 outputType
@@ -923,7 +950,9 @@ contract MediaConsumer {
             executor,
             encryptedSecrets,   // ECIES-encrypted JSON with storage creds
             ttl,
-            new bytes[](0),     // secretSignatures
+            // One EIP-191 signature per blob, even when signer == tx.origin
+            // (see ritual-dapp-secrets). Empty secrets -> empty signatures.
+            secretSignatures,
             bytes(""),          // userPublicKey
             uint64(5),          // pollIntervalBlocks
             uint64(1000),       // maxPollBlock
