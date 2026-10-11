@@ -470,6 +470,16 @@ If either returns `0x`, your deployment config is wrong for that RPC.
 
 ### External Contracts
 
+> **STOP — do not use these as Ritual deployments without verifying.**
+> `0xC02a...` is mainnet WETH, `0xA0b8...` mainnet USDC, `0xE592...`/`0x1F98...`
+> mainnet Uniswap V3, and `0x5577...` is not the canonical deterministic
+> Multicall3 (`0xcA11bde05977b363116702b2b503b871230847839c`). They are listed
+> for reference only (interface ABIs, fork-test mocks). On Ritual Chain (id
+> 1979, native currency RITUAL) these addresses almost certainly hold no
+> code — verify with `cast code <addr> --rpc-url $RITUAL_RPC_URL` before
+> interacting. Never assume mainnet contracts exist on Ritual; never send
+> value to an unverified address.
+
 | Contract | Address |
 |----------|---------|
 | Multicall3 | `0x5577Ea679673Ec7508E9524100a188E7600202a3` |
@@ -820,7 +830,7 @@ After deploying your dApp contracts, verify these items:
 
 - [ ] Deployer/operator has deposited RITUAL into RitualWallet
 - [ ] Deposit amount is sufficient for expected async call volume
-- [ ] Lock duration covers the maximum expected execution time (use `100_000n` blocks for development — 5000 blocks is ~29 min on the ~350ms conservative baseline; confirm with `ritual-dapp-block-time`)
+- [ ] Lock duration covers the maximum expected execution time (use `5_000n` blocks for development — 5000 blocks is ~29 min on the ~350ms conservative baseline; confirm with `ritual-dapp-block-time`)
 - [ ] Deposit is against the **signing EOA**, not just the contract address (async precompile fee checks use the EOA, not `address(this)`)
 
 ```typescript
