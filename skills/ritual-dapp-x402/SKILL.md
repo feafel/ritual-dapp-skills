@@ -62,7 +62,7 @@ This skill is a **composition layer**. It combines patterns from other skills wi
 - **`ritual-dapp-http`** — HTTP precompile (0x0801) encoding format, executor selection, ABI parameter layout. X402 uses the same encoding with encrypted secrets added.
 - **`ritual-dapp-wallet`** — RitualWallet deposit flows. The sender's wallet must be funded before any X402 call.
 - **`ritual-dapp-longrunning`** — For premium APIs with response times >30s, use 0x0805 instead of 0x0801.
-- **`ritual-dapp-frontend`** — For building UI around X402 flows. Use `walletClient.request({ method: "eth_sendTransaction" })` with explicit `gas` hex field (never `useWriteContract` or `useSendTransaction` for async precompiles — both trigger EVM simulation which fails).
+- **`ritual-dapp-frontend`** — For building UI around X402 flows. Prefer `useSendTransaction` (no separate `simulate` call) or `walletClient.request({ method: "eth_sendTransaction" })` with explicit `gas` hex field. Avoid `useWriteContract` for functions that internally call async precompiles — its `eth_call` simulation against the precompile address fails (see `ritual-dapp-frontend`).
 
 ---
 
@@ -86,7 +86,7 @@ X402 uses the **same HTTP precompile ABI** (`0x0801`) as a plain HTTP call. The 
 | 9 | `bytes` | body | Request body | **← X402: body with secret placeholders** |
 | 10 | `uint256` | dkmsKeyIndex | `0` (disabled) | `0` (X402 does not use dKMS) |
 | 11 | `uint8` | dkmsKeyFormat | `0` (disabled) | `0` (X402 does not use dKMS) |
-| 12 | `bool` | piiEnabled | `false` | **← X402: set to `true`** — enables secret template substitution. See `ritual-dapp-secrets`. |
+| 12 | `bool` | piiEnabled | `false` | `false` (keep `false` unless you need PII redaction). Secret substitution is triggered by non-empty `encryptedSecrets`, not by this flag. See `ritual-dapp-secrets`. |
 
 ### How String Replacement Works
 
@@ -121,7 +121,7 @@ const x402Payload = JSON.stringify({
   BILLING_TOKEN: process.env.BILLING_TOKEN,
 });
 
-// 2. Encrypt to executor's pubkey (lookup via TEEServiceRegistry.getNodePublicKey)
+// 2. Encrypt to executor's pubkey (from getServicesByCapability(0, true) -> node.publicKey)
 const encrypted = encrypt(executorPublicKey.slice(2), Buffer.from(x402Payload));
 const encryptedHex = `0x${Buffer.from(encrypted).toString('hex')}`;
 
@@ -133,7 +133,7 @@ const signature = await account.signMessage({ message: { raw: encrypted } });
 //    secretSignatures: [signature]
 ```
 
-The `executorPublicKey` comes from the TEE Service Registry at `0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F` via `getNodePublicKey(executorAddress)`. To find available executors, query `getServicesByCapability(0, true)` for HTTP_CALL-capable executors — see `ritual-dapp-http` section 10. See `ritual-dapp-secrets` for the full encryption flow.
+The `executorPublicKey` comes from the TEE Service Registry at `0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F` via `getServicesByCapability(0, true)` (take `node.publicKey` of a valid service — there is no `getNodePublicKey` getter). To find available executors, query `getServicesByCapability(0, true)` for HTTP_CALL-capable executors — see `ritual-dapp-http` section 10. See `ritual-dapp-secrets` for the full encryption flow.
 
 **Multiple secrets:** The `encryptedSecrets` array can hold multiple blobs. Typically you encrypt a single JSON object with all credential keys and pass it as a single-element array. Multiple entries are for cases where different secrets are encrypted to different executor public keys (e.g., a multi-executor setup). For most X402 dApps, use `[encryptedHex]` (single element).
 
@@ -219,7 +219,7 @@ contract X402Consumer {
             executor, encryptedSecrets, ttl, secretSignatures, bytes(""),
             url, uint8(1), headerKeys, headerValues, bytes(""),
             uint256(0), uint8(0),  // dkmsKeyIndex, dkmsKeyFormat (0 = disabled)
-            true                   // piiEnabled
+            false                  // piiEnabled (substitution runs on encryptedSecrets regardless)
         );
 
         (bool success, bytes memory rawOutput) = HTTP_PRECOMPILE.call(input);
@@ -292,4 +292,4 @@ See `ritual-dapp-longrunning` for the full 0x0805 encoding format. Add the encry
 | Payment encryption | ECIES to executor pubkey — see `ritual-dapp-secrets` |
 | Secret replacement syntax | `SECRET_NAME` — keys must match encrypted JSON, `UPPER_SNAKE_CASE` |
 | Budget pattern | Per-address limits with configurable `costPerCall` in consumer contract |
-| Callback access control | `require(msg.sender == HTTP_PRECOMPILE)` — always enforce |
+| Callback access control | `require(msg.sender == 0x5A16214fF555848411544b005f7Ac063742f39F6)` (AsyncDelivery, 0x0805 callbacks only — 0x0801 has no callbacks) — always enforce |
