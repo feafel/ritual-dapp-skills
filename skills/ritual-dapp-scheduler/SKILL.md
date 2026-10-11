@@ -844,7 +844,7 @@ scheduler_ttl=50, async_ttl=100, max_poll_block=5000.
 Block 1000: Scheduler fires. Phase 1 commitment.
 Block 1003: Phase 1 settlement. Builder replays TxScheduled.
             Scheduler.execute(): 1003 <= 1000 + 50 ✅ (scheduler TTL OK)
-            Phase 1 settles. Sender lock released.
+            Phase 1 settles (no sender lock was ever held — the scheduled path is exempt).
 Block 6003: Phase 2 delivery arrives (within max_poll_block).
             AsyncDelivery.deliver() calls your callback.
             This does NOT go through Scheduler.execute() — no scheduler TTL check.

@@ -275,7 +275,7 @@ Run these checks before calling `configureFundAndStart` or any compressed launch
 4. **`deliveryTarget` == predicted harness**: `SovereignAgentParams.deliveryTarget` must equal the predicted child. Mismatch reverts with `InvalidDeliveryTarget()`.
 5. **Executor discovered**: `TEEServiceRegistry.getServicesByCapability(0, true)` returns at least one valid executor. Use `node.teeAddress`.
 6. **Secrets encrypted correctly**: ECIES with `symmetricNonceLength = 12` to executor's `node.publicKey`. Wrong nonce = silent failure.
-7. **`frequency` default 2000**: sovereign agent round trips take ~60-90s. Default **2000** is the safe starting value. `frequency=1` fires every block; sender lock blocks concurrent async jobs, causing precompile reverts.
+7. **`frequency` default 2000**: sovereign agent round trips take ~60-90s. Default **2000** is the safe starting value. `frequency=1` fires every block. Note: scheduled transactions are EXEMPT from the sender lock (see ritual-dapp-scheduler 'Sender lock behavior') — overlapping round trips (~60-90s each) still pile up executor work and out-of-order windows, so keep the safe default 2000 unless you have measured smaller.
 8. **Lifespan check**: `frequency × numCalls <= 10,000` (Scheduler `MAX_LIFESPAN`). Exceeding this reverts with `ScheduleLifespanExceeded()`.
 9. **`schedulerFunding` sufficient**: deposited into harness RitualWallet. Must cover `windowNumCalls` executions. Recommended: 5+ RITUAL for testing.
 10. **Gas limit for `configureFundAndStart` >= 3,000,000**: uses ~2.5M gas. Default estimation fails.
