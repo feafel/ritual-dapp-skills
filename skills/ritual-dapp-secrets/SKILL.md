@@ -323,7 +323,7 @@ Sign each encrypted secret blob using viem's `signMessage` with raw bytes:
 // The executor expects EIP-191 personal_sign format
 const signature = await walletClient.signMessage({
   account: userAddress,
-  message: { raw: encryptedSecretBytes },  // Pass raw bytes, NOT the hash
+  message: { raw: encryptedSecrets[0] },  // Pass raw bytes, NOT the hash
 });
 // Returns 65-byte signature [R(32) || S(32) || V(1)]
 
@@ -400,7 +400,7 @@ const input = encodeAbiParameters(
     [signature],              // signatures array
     '0x',                     // userPublicKey (empty if no response encryption)
     'https://api.example.com/data',
-    0,                        // GET
+    1,                        // GET (0 is invalid and rejected at the RPC level)
     ['Authorization'],
     ['Bearer API_KEY'],        // key-name placeholder
     '0x',                     // empty body for GET
@@ -1012,7 +1012,16 @@ contract SecretConsumer {
         );
         require(success, "Precompile call failed");
 
-        emit RequestSubmitted(bytes32(result));
+        // Precompile output is the (bytes,bytes) envelope — decode it, then
+        // the 5-field HTTPCallResponse. bytes32(result) compiles only with an
+        // unsafe-typecast warning AND takes the envelope's first 32 bytes
+        // (the offset word), not a job id — always decode instead.
+        (, bytes memory actualOutput) = abi.decode(result, (bytes, bytes));
+        (uint16 statusCode, , , , string memory errorMessage) =
+            abi.decode(actualOutput, (uint16, string[], string[], bytes, string));
+        require(statusCode >= 200 && statusCode < 300, errorMessage);
+
+        emit RequestSubmitted(keccak256(actualOutput));
     }
 
     function updateSecretsHash(bytes32 _newHash) external onlyOwner {
@@ -1171,14 +1180,21 @@ contract PrivateOutputConsumer {
         );
         require(success, "Precompile call failed");
 
-        bytes32 jobId = bytes32(result);
-        requests[jobId] = PrivateRequest({
+        // Same envelope rule as above: decode (bytes,bytes) first.
+        // NOTE: bytes32(x) on bytes memory compiles with a truncation warning
+        // but yields the offset word, not an id; and the delivery
+        // jobId is the origin tx hash (not derivable here). This local id is
+        // for the submitter's own bookkeeping only — correlate it off-chain
+        // with the tx hash via the PrivateRequestSubmitted event.
+        (, bytes memory privateOutput) = abi.decode(result, (bytes, bytes));
+        bytes32 requestId = keccak256(privateOutput);
+        requests[requestId] = PrivateRequest({
             requester: msg.sender,
             userPublicKey: userPublicKey,
             timestamp: block.timestamp
         });
 
-        emit PrivateRequestSubmitted(jobId, msg.sender);
+        emit PrivateRequestSubmitted(requestId, msg.sender);
     }
 
     function handleCallback(
@@ -1186,9 +1202,13 @@ contract PrivateOutputConsumer {
         bytes calldata encryptedResult
     ) external {
         require(msg.sender == ASYNC_DELIVERY_SENDER, "Unauthorized callback");
-        PrivateRequest memory req = requests[jobId];
-        require(req.requester != address(0), "Unknown job");
-
+        // NOTE: 0x0801 short-running settles inline in the deferred tx —
+        // AsyncDelivery never calls back for it (callbacks are 0x0805-only).
+        // This handler applies to long-running delivery, where jobId is the
+        // origin tx hash: join it off-chain with PrivateRequestSubmitted, and
+        // additionally gate on a pending-job registry (see the callback-
+        // spoofing note in ritual-dapp-longrunning) — a bare
+        // requests[jobId] lookup never matches a locally-derived id.
         emit PrivateResultReady(jobId, encryptedResult);
     }
 }

@@ -930,6 +930,16 @@ contract LLMConsumer {
     address constant LLM_PRECOMPILE = 0x0000000000000000000000000000000000000802;
     address constant RITUAL_WALLET  = 0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948;
 
+    /// @dev DA reference for conversation history (convoHistory tuple).
+    ///      Must be passed as a struct, NOT as nested abi.encode(...) bytes —
+    ///      the precompile decodes field 29 as (string,string,string) and
+    ///      rejects the payload otherwise (RPC -32602 invalid async payload).
+    struct StorageRef {
+        string platform;
+        string path;
+        string keyRef;
+    }
+
     event InferenceCompleted(string model, bool hasError);
 
     function depositForFees() external payable {
@@ -939,6 +949,9 @@ contract LLMConsumer {
         require(ok, "Deposit failed");
     }
 
+    // NOTE: the 30-field calldata encode below needs `via_ir = true` in
+    // foundry.toml (legacy codegen: "Stack too deep"). Same class as the
+    // X402 13-field consumer — see ritual-dapp-deploy config.
     function requestInference(
         address executor,
         string calldata messagesJson,
@@ -976,7 +989,7 @@ contract LLMConsumer {
             int256(1000),        // topP (1.0 × 1000)
             "",                  // user
             bool(false),         // piiEnabled
-            abi.encode("gcs", "convos/my-session.jsonl", "GCS_CREDS")
+            StorageRef("gcs", "convos/my-session.jsonl", "GCS_CREDS")
         );
 
         // Short-running async envelope: (bytes simmedInput, bytes actualOutput).
@@ -989,8 +1002,10 @@ contract LLMConsumer {
 
         bytes memory modelMeta;
         string memory errorMsg;
-        (hasError, completionData, modelMeta, errorMsg, ) =
-            abi.decode(actualOutput, (bool, bytes, bytes, string, (string, string, string)));
+        StorageRef memory updatedHistory;
+        // Tuple components cannot be inlined in abi.decode — use the struct.
+        (hasError, completionData, modelMeta, errorMsg, updatedHistory) =
+            abi.decode(actualOutput, (bool, bytes, bytes, string, StorageRef));
 
         emit InferenceCompleted(model, hasError);
     }

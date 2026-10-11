@@ -1146,6 +1146,7 @@ For integration tests, set `maxConcurrency: 1` and `testTimeout: 120_000` to ser
 ```typescript
 // test/fixtures.ts
 import type { Address, Hex } from 'viem';
+import { encodeAbiParameters } from 'viem';
 
 export const TEST_EXECUTOR: Address = '0x1234567890abcdef1234567890abcdef12345678';
 export const TEST_USER: Address = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
@@ -1174,7 +1175,6 @@ export function makeMockHTTPResponseData(
   error = ''
 ): Hex {
   // Returns ABI-encoded HTTP response data for testing short-running async settlement decoding
-  const { encodeAbiParameters } = require('viem');
   return encodeAbiParameters(
     [
       { type: 'uint16' },
