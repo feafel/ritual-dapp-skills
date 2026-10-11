@@ -573,8 +573,11 @@ async function getPrivateHoroscope(zodiacSign: string) {
 
 The SecretsAccessControl contract allows a secret owner to grant other addresses (delegates) permission to use their encrypted secrets. This enables patterns like:
 
-- A DAO treasury granting a smart contract access to shared API keys
+- A DAO treasury authorizing member EOAs (delegates must be EOAs — contracts
+  can never be `tx.origin`, so a grant naming a contract address is dead;
+  see the enforcement note below)
 - A user delegating their secrets to a consumer contract for a limited time
+  (the consumer's CALLER EOA must hold the grant, not the contract)
 - An organization sharing credentials across multiple contracts with expiration
 
 ### Contract Address
@@ -991,9 +994,13 @@ contract SecretConsumer {
     }
 
     function verifySecretAccess() public view returns (bool) {
+        // The executor authorizes (owner, tx.origin): the EOA that sent the
+        // tx — NOT this contract. Checking address(this) approves jobs this
+        // contract never earned and lets any contract the delegate calls in
+        // the same tx ride the delegate's grant. Match enforcement exactly.
         (bool hasAccess,) = SECRETS_AC.checkAccess(
             owner,
-            address(this),
+            tx.origin,
             secretsHash
         );
         return hasAccess;
@@ -1016,6 +1023,9 @@ contract SecretConsumer {
     }
 
     function updateSecretsHash(bytes32 _newHash) external onlyOwner {
+        // Local flip alone keeps authorizing the OLD hash on-chain. Rotate
+        // per the Security Checklist: owner EOA grants the new hash first,
+        // then revokes the old hash — separate txs, never this local var.
         bytes32 oldHash = secretsHash;
         secretsHash = _newHash;
         emit SecretHashUpdated(oldHash, _newHash);
@@ -1097,9 +1107,13 @@ contract DAOSecretManager {
         emit ConsumerAuthorized(consumer);
     }
 
-    function revokeConsumer(address consumer) external onlyAdmin {
+    function revokeConsumer(address consumer, bytes32 secretsHash) external onlyAdmin {
         authorizedConsumers[consumer] = false;
         emit ConsumerRevoked(consumer);
+        // Local flip alone leaves the on-chain grant live (residual access).
+        // The GRANT OWNER (admin EOA — contracts cannot hold EOA grants, see
+        // the DAO warning) must also send, in a separate tx:
+        // cast send $SECRETS_AC "revokeAccess(address,bytes32)" $consumer $secretsHash
     }
 
     /// @notice Grant a consumer access to a secret with an empty (unrestricted) policy
