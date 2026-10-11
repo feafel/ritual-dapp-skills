@@ -704,8 +704,9 @@ contract MediaConsumer {
         require(ok, "Image precompile call failed");
 
         // NOTE: The callback jobId is the ORIGINAL TX HASH, not keccak256(result).
-        // Do not use keccak256(result) as a key for pending request lookup —
-        // it will not match the jobId delivered in the callback.
+        // This emitted id is submit-side bookkeeping only. Indexers: join on
+        // MediaReady.taskId (which equals the delivery jobId = origin tx hash),
+        // NOT on this value — the two identifiers live in different txs.
         emit ImageRequested(keccak256(result));
     }
 
@@ -735,6 +736,7 @@ contract MediaConsumer {
 
         // NOTE: keccak256(result) is a local identifier only.
         // The Phase 2 callback jobId is the original TX hash, not this value.
+        // Indexers: join on MediaReady.taskId (= delivery jobId), not this value.
         emit AudioRequested(keccak256(result));
     }
 
@@ -766,6 +768,7 @@ contract MediaConsumer {
 
         // NOTE: keccak256(result) is a local identifier only.
         // The Phase 2 callback jobId is the original TX hash, not this value.
+        // Indexers: join on MediaReady.taskId (= delivery jobId), not this value.
         emit VideoRequested(keccak256(result));
     }
 
@@ -1006,30 +1009,35 @@ Multimodal generation is asynchronous. After Phase 1, poll for the task status b
 
 ### Polling Pattern
 
+> **Do NOT poll the submit-tx receipt for `MediaReady`.** Phase 2 arrives via
+> callback in a *separate* transaction, so the original receipt only attests
+> Phase 1 and filtering its logs always times out. Poll the consumer
+> contract's `results()` view (keyed by the callback `jobId` = origin tx
+> hash), or use the event listener below.
+
 ```typescript
 import type { PublicClient } from 'viem';
 
 async function waitForMedia(
   publicClient: PublicClient,
-  txHash: `0x${string}`,
+  consumerAddress: `0x${string}`,
+  consumerAbi: readonly unknown[],
+  jobId: `0x${string}`, // callback jobId = origin tx hash
   maxWaitMs = 300_000,  // 5 minutes
   pollIntervalMs = 10_000
 ) {
   const startTime = Date.now();
 
   while (Date.now() - startTime < maxWaitMs) {
-    const receipt = await publicClient.getTransactionReceipt({
-      hash: txHash,
+    const result = await publicClient.readContract({
+      address: consumerAddress,
+      abi: consumerAbi,
+      functionName: 'results',
+      args: [jobId],
     });
 
-    if (receipt.status === 'success') {
-      const logs = receipt.logs.filter(
-        (log) => log.topics[0] === '0x...' // MediaReady event topic
-      );
-
-      if (logs.length > 0) {
-        return { status: 'ready', logs };
-      }
+    if (result && (result as { completedBlock?: bigint }).completedBlock !== 0n) {
+      return { status: 'ready', result };
     }
 
     await new Promise((r) => setTimeout(r, pollIntervalMs));

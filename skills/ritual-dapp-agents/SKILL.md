@@ -1857,6 +1857,7 @@ const secretsJson = JSON.stringify({
   LLM_PROVIDER: 'anthropic',
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_KEY,
 });
+// eciesjs accepts the 0x-hex registry key directly (hex-decoded internally).
 const encryptedSecrets = encrypt(executorPublicKey, Buffer.from(secretsJson));
 
 const deliverySelector = toFunctionSelector('onSovereignAgentResult(bytes32,bytes)');
@@ -2095,7 +2096,7 @@ The `dkms_encrypted:` prefix tells the executor: "this content is ECIES-encrypte
 ```typescript
 // Encrypt a system prompt to the agent's DA public key
 const systemPromptContent = Buffer.from('You are a DeFi portfolio agent...');
-const encrypted = encrypt(agentDAPublicKey.slice(2), systemPromptContent);
+const encrypted = encrypt(agentDAPublicKey, systemPromptContent);
 // Upload `encrypted` to HF, then reference with dkms_encrypted: prefix:
 const systemPrompt: StorageRef = ['hf', 'my-org/workspace/system.encrypted.md', 'dkms_encrypted:HF_TOKEN'];
 ```
@@ -2116,7 +2117,7 @@ const secretsJson = JSON.stringify({
   ANTHROPIC_API_KEY: 'sk-ant-...',
   PRIVATE_PROMPT: 'Analyze my DeFi positions and suggest optimizations for maximum yield',
 });
-const encryptedSecrets = encrypt(executorPublicKey.slice(2), Buffer.from(secretsJson));
+const encryptedSecrets = encrypt(executorPublicKey, Buffer.from(secretsJson));
 
 // The on-chain prompt is just the placeholder — visible to everyone but meaningless
 const prompt = 'PRIVATE_PROMPT';
@@ -2237,7 +2238,7 @@ const encoded = encodeAbiParameters(PERSISTENT_AGENT_ABI, [
 
 The async transaction pool enforces **one pending async job per sender address**. You cannot submit a second agent call from the same wallet while the first is in flight.
 
-**For sequential operations (same wallet):** Wait for Phase 1 completion before submitting the next call. Once Phase 1 settles (the job ID is returned), the sender slot is freed and a new async transaction can be submitted.
+**For sequential operations (same wallet):** wait for Phase 2 delivery (or TTL expiry) before submitting the next call — poll `AsyncJobTracker.hasPendingJobForSender(sender)` until it returns `false`. Phase 1 is the commitment that *sets* the sender lock; it does not free it. Submitting while a previous agent job is in flight gets silently dropped.
 
 **For concurrent agents:** Use separate wallet addresses for each concurrent agent call. Each wallet can independently have one pending job.
 
@@ -2320,7 +2321,7 @@ const secretsJson = JSON.stringify({
   HF_TOKEN: process.env.HF_TOKEN!,
 });
 const encryptedSecrets = [
-  `0x${encrypt(executorPubKey.slice(2), Buffer.from(secretsJson)).toString('hex')}` as `0x${string}`,
+  `0x${encrypt(executorPubKey, Buffer.from(secretsJson)).toString('hex')}` as `0x${string}`,
 ];
 
 // Use encryptedSecrets in your Persistent Agent or Sovereign Agent encoding
