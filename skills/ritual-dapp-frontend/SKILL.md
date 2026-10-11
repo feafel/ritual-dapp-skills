@@ -245,7 +245,7 @@ export interface AsyncTxSettled {
   result: unknown;
   settlementTxHash: `0x${string}`;
   settledBlock: number;
-  gasUsed: bigint;
+  gasUsed: number;
 }
 
 export interface AsyncTxFailed {
