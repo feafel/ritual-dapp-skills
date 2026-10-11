@@ -644,22 +644,28 @@ export function useRitualWallet() {
 
 ```typescript
 import { useRitualWallet } from "./useRitualWallet";
+import { useBlockNumber } from "wagmi";
 import { useMemo } from "react";
 
-export function useDepositGate(estimatedFeeWei: bigint) {
-  const { balance, deposit, isConfirming } = useRitualWallet();
+// Balance alone is not enough: a funded wallet with an expired lock is still
+// rejected at async settlement (same hole as the HTTP quickstart fixed via
+// lockUntil checks). Gate on BOTH.
+export function useDepositGate(estimatedFeeWei: bigint, ttlBlocks: bigint = 300n) {
+  const { balance, lockUntilBlock, deposit, isConfirming } = useRitualWallet();
+  const { data: blockNumber } = useBlockNumber();
 
   const hasSufficientDeposit = useMemo(() => {
-    if (!balance) return false;
-    return balance >= estimatedFeeWei;
-  }, [balance, estimatedFeeWei]);
+    if (balance == null || balance < estimatedFeeWei) return false;
+    if (lockUntilBlock == null || blockNumber == null) return false;
+    return lockUntilBlock >= blockNumber + ttlBlocks;
+  }, [balance, lockUntilBlock, blockNumber, estimatedFeeWei, ttlBlocks]);
 
   return {
     hasSufficientDeposit,
     shortfall: balance ? (estimatedFeeWei > balance ? estimatedFeeWei - balance : 0n) : estimatedFeeWei,
     deposit,
     isConfirming,
-    message: hasSufficientDeposit ? null : "Insufficient RitualWallet deposit. Deposit RITUAL before submitting.",
+    message: hasSufficientDeposit ? null : "Insufficient RitualWallet deposit or lock expiry. Deposit RITUAL with a sufficient lock before submitting.",
   };
 }
 ```
