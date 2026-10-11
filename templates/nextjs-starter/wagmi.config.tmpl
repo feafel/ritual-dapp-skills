@@ -1,4 +1,5 @@
 import { createConfig, http } from 'wagmi';
+import { injected } from 'wagmi/connectors';
 import { defineChain } from 'viem';
 
 export const ritualChain = defineChain({
@@ -15,6 +16,9 @@ export const ritualChain = defineChain({
 
 export const config = createConfig({
   chains: [ritualChain],
+  // No connectors configured = no wallet button works. injected() covers
+  // MetaMask/Rabby/etc.; add RainbowKit/ConnectKit providers for more.
+  connectors: [injected()],
   transports: {
     [ritualChain.id]: http(),
   },

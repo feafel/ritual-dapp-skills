@@ -1,12 +1,10 @@
 {
   "hosting": {
-    "target": "skills",
-    "public": ".",
+        "public": ".",
     "ignore": [
       "firebase.json",
       ".firebaserc",
-      "runbook.md",
-      "Dockerfile",
+            "Dockerfile",
       "**/.*",
       "**/node_modules/**"
     ],

@@ -4,6 +4,7 @@ examples/contracts/
 # Secrets / credentials
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.p12

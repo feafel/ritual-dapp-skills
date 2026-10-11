@@ -487,7 +487,7 @@ When a user selects a feature, load the corresponding skills:
 | Private outputs      | ECIES encryption     | `ritual-dapp-secrets`     |
 | Delegated secrets    | SecretsAccessControl | `ritual-dapp-secrets`     |
 | X402 micropayments   | X402 HTTP flow       | `ritual-dapp-x402`        |
-| ZK proofs            | `0x0806`             | `ritual-dapp-zk`          |
+| ZK proofs            | `0x0806`             | `ritual-dapp-precompiles` (ZK Long-Running section; no dedicated skill yet) |
 
 **Cross-cutting skills** loaded for every build:
 

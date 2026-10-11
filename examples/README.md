@@ -50,7 +50,7 @@ Output per contract:
 - **Precompile encoding** — how call data is encoded for `0x0801` (HTTP), `0x0802` (LLM), etc.
 - **Callback handling** — how results are decoded and stored on delivery
 - **Feature composition** — how scheduler + secrets + HTTP work together in one contract
-- **Fee management** — how `RitualWallet.lockFee()` is called before async requests
+- **Fee management** — fund via `RitualWallet.deposit{value: X}(lockDuration)` before the first async call; fees lock implicitly at submission, there is no separate `lockFee` call
 - **SPC patterns** — how state writes persist after SPC calls and in two-phase async submit functions
 
 ## Agent Deployment Modes In This Repo
