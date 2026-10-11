@@ -693,7 +693,7 @@ Canonical encode/decode functions. Reference these from hooks — don't duplicat
 13-field canonical encoding (includes DKMS fields). For non-DKMS flows, pass `dkmsKeyIndex: 0n` and `dkmsKeyFormat: 0`. See `ritual-dapp-http` skill for full HTTP precompile details.
 
 ```typescript
-import { encodeAbiParameters, decodeAbiParameters, type Hex } from "viem";
+import { encodeAbiParameters, decodeAbiParameters, hexToBytes, type Hex } from "viem";
 
 export function encodeHTTPCallRequest(params: {
   executor: `0x${string}`;
@@ -748,9 +748,11 @@ export function decodeHTTPCallResponse(data: Hex) {
   headerKeys.forEach((k, i) => { headers[k] = headerValues[i]; });
   return {
     statusCode, headers,
-    body: new TextDecoder().decode(body as Uint8Array),
+    // decodeAbiParameters returns bytes as Hex, not Uint8Array — decode via
+    // hexToBytes first (import { hexToBytes } from 'viem').
+    body: new TextDecoder().decode(hexToBytes(body)),
     error: errorMessage || null,
-    get jsonBody() { return JSON.parse(new TextDecoder().decode(body as Uint8Array)); },
+    get jsonBody() { return JSON.parse(new TextDecoder().decode(hexToBytes(body))); },
   };
 }
 ```

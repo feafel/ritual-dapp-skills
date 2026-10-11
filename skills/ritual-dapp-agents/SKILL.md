@@ -1419,7 +1419,7 @@ This lets a persistent agent expose an operator-facing communication surface wit
 ### Raw ABI Usage
 
 ```typescript
-import { encodeAbiParameters, parseAbiParameters } from 'viem';
+import { encodeAbiParameters, parseAbiParameters, toFunctionSelector } from 'viem';
 
 // LLM provider enum: 0=Anthropic, 1=OpenAI, 2=Gemini, 3=xAI, 4=OpenRouter
 const LLMProvider = { ANTHROPIC: 0, OPENAI: 1, GEMINI: 2, XAI: 3, OPENROUTER: 4 } as const;

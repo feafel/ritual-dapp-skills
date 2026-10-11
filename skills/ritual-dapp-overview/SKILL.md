@@ -602,7 +602,7 @@ const logs = await publicClient.getLogs({
 When the job reaches SETTLED state, decode the precompile-specific output:
 
 ```typescript
-import { decodeAbiParameters } from "viem";
+import { decodeAbiParameters, hexToBytes } from "viem";
 
 const [statusCode, respHeaderKeys, respHeaderValues, body, errorMessage] =
   decodeAbiParameters(
@@ -617,7 +617,7 @@ const [statusCode, respHeaderKeys, respHeaderValues, body, errorMessage] =
   );
 
 console.log("Status:", statusCode);
-console.log("Body:", new TextDecoder().decode(body));
+console.log("Body:", new TextDecoder().decode(hexToBytes(body))); // body is Hex — import { hexToBytes } from "viem"
 console.log("Error:", errorMessage || "(none)");
 ```
 
