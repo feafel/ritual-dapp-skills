@@ -161,6 +161,7 @@ const secretsJson = JSON.stringify({
   API_KEY: 'sk-my-openai-key-here',
   WEBHOOK_SECRET: 'whsec_abc123',
 });
+// eciesjs expects Buffer — use Buffer.from (Node) or polyfill in browser
 const encryptedBuffer = encrypt(executorPublicKey.slice(2), Buffer.from(secretsJson));
 const encryptedSecrets: Hex[] = [`0x${encryptedBuffer.toString('hex')}`];
 const secretsHash: Hex = keccak256(toBytes(encryptedSecrets[0]));

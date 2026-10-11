@@ -1172,8 +1172,10 @@ To receive the result on-chain, configure delivery fields in your precompile inp
 //   deliveryGasLimit:             3_000_000n,
 //   deliveryMaxFeePerGas:         1_000_000_000n,
 //   deliveryMaxPriorityFeePerGas: 100_000_000n,
-//   deliveryValue:                0n,
+//   deliveryValue:                0n,       // Persistent Agent only — Sovereign Agent ignores this field
 ```
+
+> **Note:** `deliveryValue` is only effective for **Persistent Agent**. Sovereign Agent does not forward value with delivery callbacks.
 
 Setting `deliveryTarget` to `0x0000000000000000000000000000000000000000` means no on-chain delivery — the result is only available off-chain via event logs.
 

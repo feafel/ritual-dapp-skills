@@ -622,9 +622,10 @@ uint256 callId = scheduler.schedule(
     1,                          // frequency (eligible every block)
     50,                         // ttl
     1 gwei, 0, 0,
-    address(this),
-    address(blockPredicate)     // fires at block 1000
+    address(this)
 );
+// NOTE: schedule() has 10 parameters (no predicate slot).
+// To use a predicate, register it with the scheduler contract separately.
 ```
 
 With `numCalls = 1`, the only execution slot is index 0 at `startBlock`. If the target block is outside `startBlock + scheduler_ttl`, the predicate never fires and the schedule expires. `numCalls` must be large enough to keep the schedule alive until the target.
@@ -647,9 +648,10 @@ uint256 callId = scheduler.schedule(
     1,                          // frequency
     50,                         // scheduler_ttl (must cover async settlement too)
     1 gwei, 0, 0,
-    address(this),
-    address(blockPredicate)     // fires at block 1000
+    address(this)
 );
+// NOTE: schedule() has 10 parameters (no predicate slot).
+// To use a predicate, register it with the scheduler contract separately.
 ```
 
 ```
