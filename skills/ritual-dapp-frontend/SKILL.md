@@ -525,6 +525,7 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
       for (const log of logs) {
         const tx = getTransaction(txId);
         if (!tx) continue;
+        if (tx.state.jobId && log.args.jobId !== tx.state.jobId) continue;
         if (tx.state.status === "COMMITTED" || tx.state.status === "EXECUTOR_PROCESSING") {
           updateState(txId, {
             status: "RESULT_READY",
@@ -546,6 +547,7 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
       for (const log of logs) {
         const tx = getTransaction(txId);
         if (!tx || tx.state.status !== "RESULT_READY") continue;
+        if (tx.state.jobId && log.args.jobId !== tx.state.jobId) continue;
         updateState(txId, {
           status: log.args.success ? "SETTLED" : "FAILED",
           txHash: tx.state.txHash,
