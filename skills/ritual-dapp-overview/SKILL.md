@@ -617,7 +617,7 @@ const [statusCode, respHeaderKeys, respHeaderValues, body, errorMessage] =
   );
 
 console.log("Status:", statusCode);
-console.log("Body:", new TextDecoder().decode(body));
+console.log("Body:", new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex')));
 console.log("Error:", errorMessage || "(none)");
 ```
 

@@ -385,7 +385,7 @@ function decodeHTTPResponse(output: `0x${string}`) {
   return {
     statusCode,
     headers: Object.fromEntries(headerKeys.map((k, i) => [k, headerValues[i]])),
-    body: new TextDecoder().decode(body as Uint8Array),
+    body: new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex')),
     error: errorMessage || null,
   };
 }
@@ -748,9 +748,9 @@ export function decodeHTTPCallResponse(data: Hex) {
   headerKeys.forEach((k, i) => { headers[k] = headerValues[i]; });
   return {
     statusCode, headers,
-    body: new TextDecoder().decode(body as Uint8Array),
+    body: new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex')),
     error: errorMessage || null,
-    get jsonBody() { return JSON.parse(new TextDecoder().decode(body as Uint8Array)); },
+    get jsonBody() { return JSON.parse(new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex'))); },
   };
 }
 ```

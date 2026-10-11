@@ -604,7 +604,7 @@ describe('HTTP Call request encoding', () => {
     const decoded = decodeAbiParameters(HTTP_REQUEST_TYPES, encoded);
     expect(decoded[5]).toBe('https://api.example.com/query');
     expect(decoded[6]).toBe(2); // POST
-    expect(new TextDecoder().decode(decoded[9] as Uint8Array)).toBe(body);
+    expect(new TextDecoder().decode(Buffer.from((decoded[9] as string).slice(2), 'hex'))).toBe(body);
   });
 
   it('handles empty headers and body', () => {
@@ -636,7 +636,7 @@ describe('HTTP Call response decoding', () => {
 
     expect(statusCode).toBe(200);
     expect(errorMessage).toBe('');
-    expect(JSON.parse(new TextDecoder().decode(body as Uint8Array))).toEqual({ price: 3500 });
+    expect(JSON.parse(new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex')))).toEqual({ price: 3500 });
   });
 
   it('decodes an error response', () => {
@@ -659,7 +659,7 @@ describe('HTTP Call response decoding', () => {
 
     const [statusCode, , , body] = decodeAbiParameters(HTTP_RESPONSE_TYPES, encoded);
     expect(statusCode).toBe(200);
-    expect(new TextDecoder().decode(body as Uint8Array)).toBe('hello');
+    expect(new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex'))).toBe('hello');
   });
 });
 ```
@@ -1082,7 +1082,7 @@ const [statusCode, headerKeys, headerValues, body, errorMessage] =
 const bad = JSON.parse(resultHex); // ❌
 
 // Correct: decode via ABI, then parse the body bytes
-const textBody = new TextDecoder().decode(body);
+const textBody = new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex'));
 const data = JSON.parse(textBody); // ✅ properly decoded
 ```
 

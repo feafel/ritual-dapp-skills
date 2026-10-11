@@ -166,7 +166,7 @@ async function decodeJobResult(job: { precompile: number; txHash: string }) {
         type: 'http',
         statusCode,
         headers: Object.fromEntries(headerKeys.map((k, i) => [k, headerValues[i]])),
-        body: new TextDecoder().decode(body as Uint8Array),
+        body: new TextDecoder().decode(Buffer.from((body as string).slice(2), 'hex')),
         error: errorMessage || null,
       };
     }
