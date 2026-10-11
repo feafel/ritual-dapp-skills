@@ -1549,6 +1549,7 @@ The error string returned in `error_message` is **freeform** — there is no str
 | EIP-712 domain | `{ name: 'Ritual Streaming Service', version: '1', chainId: 1979 }` |
 | Message format | OpenAI chat (JSON-encoded) |
 | Stream signature expiry | 5 minutes (60s future tolerance) |
+| Stream timestamp units | Seconds (`Math.floor(Date.now()/1000)`) per this skill — but Ritual chain time is ms. If you get blanket 401s, confirm with the streaming-service operator which unit the server validates against; a ms-server seeing a seconds timestamp rejects everything as expired |
 | Convo history DA | StorageRef `(platform, path, key_ref)` — supports `gcs` (default), `hf`, `pinata`. Stored as plaintext JSONL. See `ritual-dapp-da`. |
 | GCS convo history | Default for production agents: `('gcs', path, key_ref)` with credentials in `encryptedSecrets` |
 | ECIES nonce length (`eciesjs`) | `ECIES_CONFIG.symmetricNonceLength = 12` |
