@@ -68,8 +68,10 @@ const senderLocks = new Map<string, Promise<void>>();
 
 async function submitWithSenderLock(sender: string, submitFn: () => Promise<void>) {
   const prev = senderLocks.get(sender) ?? Promise.resolve();
-  const next = prev.then(submitFn).catch(() => {});
-  senderLocks.set(sender, next);
+  const next = prev.then(submitFn);
+  // Keep the per-sender chain alive for later submissions even if this one
+  // rejects, but surface the error to THIS caller — never swallow it.
+  senderLocks.set(sender, next.catch(() => {}));
   await next;
 }
 ```
@@ -125,7 +127,7 @@ Map chain events to status transitions (event signatures are in `IAsyncJobTracke
 The most Ritual-specific backend pattern. When a short-running async precompile (HTTP, LLM) settles, the actual result is in the transaction receipt's `spcCalls` field — not in an event.
 
 ```typescript
-import { decodeAbiParameters, type Hex } from 'viem';
+import { decodeAbiParameters, parseAbiParameters, toBytes, type Hex } from 'viem';
 
 interface RitualReceipt {
   spcCalls?: Array<{ input: Hex; output: Hex }>;
@@ -149,6 +151,17 @@ async function decodeJobResult(job: { precompile: number; txHash: string }) {
   const spc = await extractSpcResult(job.txHash as Hex);
   if (!spc) return null;
 
+  // Short-running async results arrive in a two-layer envelope
+  // (bytes simmedInput, bytes actualOutput) — see "Short-Running Async Output
+  // Envelope" in ritual-dapp-contracts. Unwrap it first; decoding spc.output
+  // directly throws.
+  const [, actualOutput] = decodeAbiParameters(
+    [{ type: 'bytes' }, { type: 'bytes' }],
+    spc.output,
+  );
+  if (!actualOutput || actualOutput === '0x') return null; // empty simulation response
+  const output = actualOutput as Hex;
+
   switch (job.precompile) {
     case 0x0801: {
       const [statusCode, headerKeys, headerValues, body, errorMessage] =
@@ -160,13 +173,13 @@ async function decodeJobResult(job: { precompile: number; txHash: string }) {
             { type: 'bytes' },
             { type: 'string' },
           ],
-          spc.output,
+          output,
         );
       return {
         type: 'http',
         statusCode,
         headers: Object.fromEntries(headerKeys.map((k, i) => [k, headerValues[i]])),
-        body: new TextDecoder().decode(body as Uint8Array),
+        body: new TextDecoder().decode(toBytes(body as Hex)),
         error: errorMessage || null,
       };
     }
@@ -175,7 +188,7 @@ async function decodeJobResult(job: { precompile: number; txHash: string }) {
       const [hasError, completionData, , errorMessage] =
         decodeAbiParameters(
           parseAbiParameters('bool, bytes, bytes, string, (string,string,string)'),
-          spc.output,
+          output,
         );
 
       if (hasError) return { type: 'llm', error: errorMessage };

@@ -298,6 +298,7 @@ contract ScheduledJQConsumer {
     function scheduleRecurringTransform(
         string calldata jqFilter,
         bytes calldata inputJson,
+        uint8 outputType, // JQ return type: 0=int256, 1=uint256, 2=string (most common), 3=bool, 4=address, 5-9=array variants
         uint32 frequency,
         uint32 numCalls,
         uint32 gasLimit,
@@ -307,7 +308,8 @@ contract ScheduledJQConsumer {
             this.executeTransform.selector,
             uint256(0),     // dummy executionIndex — Scheduler overwrites
             jqFilter,
-            inputJson
+            inputJson,
+            outputType
         );
 
         activeScheduleId = scheduler.schedule(
@@ -329,9 +331,13 @@ contract ScheduledJQConsumer {
     function executeTransform(
         uint256 executionIndex,
         string calldata jqFilter,
-        bytes calldata inputJson
+        bytes calldata inputJson,
+        uint8 outputType
     ) external onlyScheduler {
-        bytes memory input = abi.encode(jqFilter, inputJson);
+        // JQ (0x0803) takes exactly 3 fields: (string query, string inputData, uint8 outputType).
+        // Omitting outputType shifts the decoding frame — bytes of inputJson get read as the
+        // type tag — so always pass it explicitly instead of relying on the query text.
+        bytes memory input = abi.encode(jqFilter, inputJson, outputType);
         (bool success, bytes memory result) = JQ_PRECOMPILE.call(input);
         require(success, "JQ precompile call failed");
 

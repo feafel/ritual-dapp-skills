@@ -456,7 +456,7 @@ import { encodeAbiParameters, decodeAbiParameters } from 'viem';
 ### 4b. Full Passkey Login Flow
 
 ```typescript
-import { keccak256, concat, toHex, toBytes, getAddress } from 'viem';
+import { keccak256, concat, toHex, toBytes, getAddress, sha256 } from 'viem';
 
 async function passkeyLogin() {
   // 1. Request WebAuthn assertion
@@ -484,11 +484,17 @@ async function passkeyLogin() {
     `0x${keccak256(concat([toBytes(x), toBytes(y)])).slice(26)}`
   );
 
-  // 4. Verify signature on-chain (optional — the chain verifies TxPasskey natively)
+  // 4. Verify signature on-chain (optional — the chain verifies TxPasskey natively).
+  // WebAuthn signs SHA-256(authenticatorData || SHA-256(clientDataJSON)), NOT the
+  // challenge. The 0x0100 precompile hashes the message with SHA-256 internally,
+  // so pass the raw concatenation and let the precompile do the outer hash.
+  const authenticatorData = new Uint8Array(response.authenticatorData);
+  const clientDataJSON = new Uint8Array(response.clientDataJSON);
+  const signedPayload = concat([authenticatorData, toBytes(sha256(clientDataJSON))]);
   const pubkeyUncompressed = concat([toBytes('0x04'), toBytes(x), toBytes(y)]);
   const isValid = await verifyP256OnChain(
     toHex(pubkeyUncompressed),
-    toHex(challenge),
+    toHex(signedPayload),
     toHex(concat([r, normalizedS]))
   );
 
@@ -812,17 +818,26 @@ function join32ByteParts(a: Uint8Array, b: Uint8Array): `0x${string}` {
   return toHex(combined);
 }
 
+// RLP encodes integers canonically: 0 -> empty string '0x', otherwise big-endian
+// without leading zeros. Note toHex(0n) returns '0x0' (one zero byte), which is
+// NOT canonical — map zero to '0x' explicitly.
+function rlpUint(n: bigint): `0x${string}` {
+  return n === 0n ? '0x' : toHex(n);
+}
+
 function encodeTxPasskeySigningPayload(tx: TxPasskeyBase): `0x${string}` {
+  // toRlp accepts only byte values (Hex/ByteArray). Integers must be
+  // converted with rlpUint first — passing raw numbers/bigints throws.
   return concatHex([
     '0x77',
     toRlp([
-      tx.chainId,
-      tx.nonce,
-      tx.maxPriorityFeePerGas,
-      tx.maxFeePerGas,
-      tx.gasLimit,
+      rlpUint(tx.chainId),
+      rlpUint(tx.nonce),
+      rlpUint(tx.maxPriorityFeePerGas),
+      rlpUint(tx.maxFeePerGas),
+      rlpUint(tx.gasLimit),
       tx.to ?? '0x',
-      tx.value,
+      rlpUint(tx.value),
       tx.data,
       tx.accessList,
     ]),
@@ -844,16 +859,16 @@ function encodeSignedWebAuthnTxPasskey(
   return concatHex([
     '0x77',
     toRlp([
-      tx.chainId,
-      tx.nonce,
-      tx.maxPriorityFeePerGas,
-      tx.maxFeePerGas,
-      tx.gasLimit,
+      rlpUint(tx.chainId),
+      rlpUint(tx.nonce),
+      rlpUint(tx.maxPriorityFeePerGas),
+      rlpUint(tx.maxFeePerGas),
+      rlpUint(tx.gasLimit),
       tx.to ?? '0x',
-      tx.value,
+      rlpUint(tx.value),
       tx.data,
       tx.accessList,
-      sig.sigType,
+      toHex(sig.sigType),
       signatureRs,
       publicKeyXy,
       toHex(sig.authenticatorData),
@@ -879,6 +894,7 @@ const rawTx = encodeSignedWebAuthnTxPasskey(tx, {
 
 Implementation notes:
 
+- `toRlp` takes byte values only — convert every integer field with the `rlpUint` helper (canonical: `0n` encodes as `0x`, not `0x00`). Passing raw numbers/bigints throws, and bare `toHex(0n)` (`'0x0'`) is non-canonical.
 - `clientDataJSON` must be encoded as raw UTF-8 bytes inside the RLP list, not hex-decoded JSON and not base64.
 - `public_key_xy` is exactly `x || y` with no uncompressed `0x04` prefix.
 - `signature_rs` is exactly `r || s` after low-s normalization.
