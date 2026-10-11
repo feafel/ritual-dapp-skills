@@ -71,6 +71,7 @@ PHASE1_GAS_LIMIT="${PHASE1_GAS_LIMIT:-900000}"
 MIN_RITUAL_WALLET_WEI="${MIN_RITUAL_WALLET_WEI:-1000000000000000000}" # 1 RIT
 DEPOSIT_WEI="${DEPOSIT_WEI:-5000000000000000000}" # 5 RIT
 LOCK_BLOCKS="${LOCK_BLOCKS:-100000000}"
+MIN_LOCK_AHEAD_BLOCKS="${MIN_LOCK_AHEAD_BLOCKS:-10000}"
 EXECUTOR_TEE_ADDRESS="${EXECUTOR_TEE_ADDRESS:-}"
 CONSUMER_ADDRESS="${CONSUMER_ADDRESS:-}"
 
@@ -94,15 +95,23 @@ if [ "$PENDING" = "true" ]; then
     exit 1
 fi
 
-# ── 2. Fund RitualWallet if needed ──
+# ── 2. Fund / refresh RitualWallet if needed (balance AND lock) ──
+CURRENT_BLOCK=$(cast block-number --rpc-url "$RPC_URL")
 WALLET_BAL=$(cast call "$WALLET" "balanceOf(address)(uint256)" "$SENDER" --rpc-url "$RPC_URL" | awk '{print $1}')
-NEEDS_DEPOSIT=$("${PY[@]}" - "$WALLET_BAL" "$MIN_RITUAL_WALLET_WEI" <<'PY'
+LOCK_UNTIL=$(cast call "$WALLET" "lockUntil(address)(uint256)" "$SENDER" --rpc-url "$RPC_URL" | awk '{print $1}')
+NEEDS_DEPOSIT=$("${PY[@]}" - "$WALLET_BAL" "$MIN_RITUAL_WALLET_WEI" "$LOCK_UNTIL" "$CURRENT_BLOCK" "$MIN_LOCK_AHEAD_BLOCKS" <<'PY'
 import sys
-print("1" if int(sys.argv[1]) < int(sys.argv[2]) else "0")
+bal = int(sys.argv[1])
+min_bal = int(sys.argv[2])
+lock_until = int(sys.argv[3])
+current_block = int(sys.argv[4])
+min_lock_ahead = int(sys.argv[5])
+# Funded-but-expired locks are rejected at async submission — refresh those too.
+print("1" if (bal < min_bal or lock_until < current_block + min_lock_ahead) else "0")
 PY
 )
 if [ "$NEEDS_DEPOSIT" = "1" ]; then
-    echo "Depositing RitualWallet balance (value=$DEPOSIT_WEI wei, lock=$LOCK_BLOCKS blocks)..."
+    echo "Depositing / refreshing RitualWallet (value=$DEPOSIT_WEI wei, lock=$LOCK_BLOCKS blocks)..."
     cast send "$WALLET" "deposit(uint256)" "$LOCK_BLOCKS" \
         --value "$DEPOSIT_WEI" \
         --private-key "$PRIVATE_KEY" \

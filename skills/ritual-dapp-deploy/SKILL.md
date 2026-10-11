@@ -198,9 +198,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 src = "src"
 out = "out"
 libs = ["lib"]
-solc = "0.8.20"
+# Must satisfy the shipped examples (pragma ^0.8.24); 0.8.20 cannot build them.
+solc = "0.8.24"
 optimizer = true
 optimizer_runs = 200
+# Required for large-ABI agent/multimodal consumers ("stack too deep"
+# otherwise) — see ritual-dapp-multimodal and the verification checklist.
+via_ir = true
 
 [rpc_endpoints]
 ritual = "${RITUAL_RPC_URL}"

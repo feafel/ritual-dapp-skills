@@ -95,6 +95,10 @@ CONSUMER_ADDRESS="${CONSUMER_ADDRESS:-}"
 TELEGRAM_DM_POLICY="${TELEGRAM_DM_POLICY:-open}"
 VERIFY_RELAY="${VERIFY_RELAY:-0}"
 RELAY_URL="${RELAY_URL:-}"
+if [ "$VERIFY_RELAY" = "1" ] && [ -z "$RELAY_URL" ]; then
+    echo "ERROR: VERIFY_RELAY=1 requires RELAY_URL to be set" >&2
+    exit 2
+fi
 
 SENDER=$(cast wallet address "$PRIVATE_KEY")
 echo "Sender: $SENDER"

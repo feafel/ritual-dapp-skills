@@ -382,6 +382,8 @@ def poll_phase2(w3: Web3, consumer: str, tx_hash: str, from_block: int, timeout:
             }
         )
         if logs:
+            # Newest delivery wins on re-delivery/retry (sovereign polls the
+            # same pattern — keep both on logs[-1]).
             result_bytes = decode_outer_bytes(bytes(logs[-1]["data"]))
             instance_id, gateway_url, container_id, checkpoint_cid, error_message, gateway_token = decode(
                 PERSISTENT_RESPONSE_TYPES, result_bytes
@@ -419,7 +421,16 @@ def verify_relay(relay_url: str, agent_address: str, timeout: int = 60):
     start = time.time()
     while time.time() - start < timeout:
         health = _http_json("GET", f"{relay}/health")
-        if any(a["id"].lower() == agent_address.lower() for a in health.get("agents", [])):
+        # Relay schema is external — tolerate null/missing agents and entries
+        # without a string id instead of crashing the poll loop.
+        agents = health.get("agents") or []
+        seen = False
+        for a in agents:
+            aid = a.get("id") if isinstance(a, dict) else None
+            if isinstance(aid, str) and aid.lower() == agent_address.lower():
+                seen = True
+                break
+        if seen:
             break
         time.sleep(2)
     else:

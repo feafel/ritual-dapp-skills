@@ -353,9 +353,12 @@ CHAIN=$(cast chain-id --rpc-url $RITUAL_RPC_URL 2>/dev/null)
 
 ```bash
 NATIVE_BAL=$(cast balance $TEST_EOA --rpc-url $RITUAL_RPC_URL)
-WALLET_BAL=$(cast call $RITUAL_WALLET "balanceOf(address)(uint256)" $TEST_EOA --rpc-url $RITUAL_RPC_URL)
-LOCK_UNTIL=$(cast call $RITUAL_WALLET "lockUntil(address)(uint256)" $TEST_EOA --rpc-url $RITUAL_RPC_URL)
-CURRENT_BLOCK=$(cast block-number --rpc-url $RITUAL_RPC_URL)
+# cast may emit trailing units/whitespace — strip to the raw integer like the
+# runnable examples do (| awk '{print $1}'), or -gt misfires with
+# "integer expression expected" on healthy wallets.
+WALLET_BAL=$(cast call $RITUAL_WALLET "balanceOf(address)(uint256)" $TEST_EOA --rpc-url $RITUAL_RPC_URL | awk '{print $1}')
+LOCK_UNTIL=$(cast call $RITUAL_WALLET "lockUntil(address)(uint256)" $TEST_EOA --rpc-url $RITUAL_RPC_URL | awk '{print $1}')
+CURRENT_BLOCK=$(cast block-number --rpc-url $RITUAL_RPC_URL | awk '{print $1}')
 [ "$NATIVE_BAL" != "0" ] && [ "$WALLET_BAL" != "0" ] && [ "$LOCK_UNTIL" -gt "$((CURRENT_BLOCK + 5000))" ] || exit 2
 ```
 
@@ -546,13 +549,20 @@ test('E2E: result renders after settlement', async ({ page }) => {
 
 ```bash
 API_BASE="${API_BASE:-http://127.0.0.1:3001}"
+# NOTE: GET /api/jobs/:jobId and GET /api/health are NOT part of the backend
+# skill's API (it defines GET /api/jobs/:jobId/stream, SSE). Implement these
+# two read endpoints in your backend first (job row + checkpoint row), or
+# substitute the /stream endpoint and a DB checkpoint query below.
 JOB_RESPONSE=$(curl -sf "$API_BASE/api/jobs/$JOB_ID")
-STATUS=$(echo $JOB_RESPONSE | jq -r '.status')
-RESULT=$(echo $JOB_RESPONSE | jq -r '.result')
+STATUS=$(echo "$JOB_RESPONSE" | jq -r '.status')
+RESULT=$(echo "$JOB_RESPONSE" | jq -r '.result')
 [ "$STATUS" = "SETTLED" ] && [ "$RESULT" != "null" ] || exit 12
 
 HEALTH=$(curl -sf "$API_BASE/api/health" | jq -r '.indexerLag.blocks')
-[ "$HEALTH" -lt 500 ] || echo "WARN: Indexer lag is $HEALTH blocks"
+case "$HEALTH" in
+  ''|*[!0-9]*) echo "WARN: health endpoint returned non-numeric: $HEALTH" ;;
+  *) [ "$HEALTH" -lt 500 ] || echo "WARN: Indexer lag is $HEALTH blocks" ;;
+esac
 ```
 
 ---

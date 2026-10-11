@@ -87,7 +87,9 @@ class RPC:
                     last_err = RuntimeError(f"RPC error ({url}): {data['error']}")
                     continue
                 return data["result"]
-            except requests.RequestException as e:
+            except (requests.RequestException, ValueError, KeyError) as e:
+                # ValueError: non-JSON error page; KeyError: missing 'result'.
+                # Either way, fail over to the next endpoint instead of aborting.
                 last_err = e
                 continue
         raise last_err or RuntimeError("All RPC endpoints failed")
@@ -144,7 +146,8 @@ def resolve_selectors(
                 resolved[sel] = results[0]["text_signature"] if results else f"unknown_0x{sel}"
             else:
                 resolved[sel] = f"unknown_0x{sel}"
-        except requests.RequestException:
+        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
+            # HTML error pages / schema drift must not kill the whole pull.
             resolved[sel] = f"unknown_0x{sel}"
     return resolved
 
@@ -168,7 +171,7 @@ def fetch_explorer_source(address: str) -> dict | None:
                     "name": data.get("name", "Unknown"),
                     "origin": "explorer",
                 }
-    except requests.RequestException:
+    except (requests.RequestException, ValueError, AttributeError):
         pass
     return None
 

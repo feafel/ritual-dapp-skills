@@ -215,7 +215,8 @@ def poll_phase2(w3: Web3, consumer: str, tx_hash: str, from_block: int, timeout:
             }
         )
         if logs:
-            raw_data = bytes(logs[0]["data"])
+            # Newest delivery wins on re-delivery/retry (matches persistent).
+            raw_data = bytes(logs[-1]["data"])
             (result_bytes,) = decode(["bytes"], raw_data)
             success, error, text, _, _, artifacts = decode(
                 [
