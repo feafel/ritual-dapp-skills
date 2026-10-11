@@ -499,7 +499,6 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
     address: ASYNC_JOB_TRACKER,
     abi: asyncJobTrackerAbi,
     eventName: "JobAdded",
-    enabled: enabled && !!address,
     onLogs: (logs) => {
       for (const log of logs) {
         if (log.args.senderAddress?.toLowerCase() !== address?.toLowerCase()) continue;
@@ -520,7 +519,6 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
     address: ASYNC_JOB_TRACKER,
     abi: asyncJobTrackerAbi,
     eventName: "Phase1Settled",
-    enabled: enabled && !!address,
     onLogs: (logs) => {
       for (const log of logs) {
         const tx = getTransaction(txId);
@@ -541,17 +539,73 @@ export function useAsyncJobEvents({ txId, enabled = true }: { txId: string; enab
     address: ASYNC_JOB_TRACKER,
     abi: asyncJobTrackerAbi,
     eventName: "ResultDelivered",
-    enabled: enabled && !!address,
     onLogs: (logs) => {
       for (const log of logs) {
         const tx = getTransaction(txId);
-        if (!tx || tx.state.status !== "RESULT_READY") continue;
-        updateState(txId, {
-          status: log.args.success ? "SETTLED" : "FAILED",
-          txHash: tx.state.txHash,
-          jobId: log.args.jobId!,
-          deliverySuccess: log.args.success,
-        });
+        if (!tx) continue;
+        // Long-running path: ResultDelivered carries the callback outcome.
+        // Short-running jobs never emit ResultDelivered — they settle via
+        // JobRemoved(completed=true) + spcCalls in the receipt (see watcher below).
+        if (tx.state.status !== "RESULT_READY") continue;
+        if (log.args.success) {
+          // ResultDelivered carries (jobId, target, success) only — the payload
+          // lives on YOUR consumer contract's event (watch it separately).
+          updateState(txId, {
+            status: "SETTLED",
+            txHash: tx.state.txHash,
+            jobId: log.args.jobId!,
+            result: null,
+            settlementTxHash: tx.state.txHash,
+            settledBlock: Number(log.blockNumber),
+            gasUsed: 0n,
+          });
+        } else {
+          updateState(txId, {
+            status: "FAILED",
+            txHash: tx.state.txHash,
+            jobId: log.args.jobId!,
+            error: "Delivery failed",
+            errorCategory: "async",
+            failedAt: tx.state.status,
+          });
+        }
+      }
+    },
+  });
+
+  // Short-running async (HTTP, LLM, DKMS) never emits Phase1Settled or
+  // ResultDelivered — the job jumps JobAdded -> JobRemoved(completed=true).
+  // Without this watcher those transactions sit in COMMITTED forever.
+  useWatchContractEvent({
+    address: ASYNC_JOB_TRACKER,
+    abi: asyncJobTrackerAbi,
+    eventName: "JobRemoved",
+    onLogs: (logs) => {
+      for (const log of logs) {
+        const tx = getTransaction(txId);
+        if (!tx) continue;
+        if (log.args.completed) {
+          // Receipt spcCalls hold the result — parse them in your
+          // settlement handler (see ritual-dapp-backend extractSpcResult).
+          updateState(txId, {
+            status: "SETTLED",
+            txHash: tx.state.txHash,
+            jobId: log.args.jobId!,
+            result: null,
+            settlementTxHash: tx.state.txHash,
+            settledBlock: Number(log.blockNumber),
+            gasUsed: 0n,
+          });
+        } else {
+          updateState(txId, {
+            status: "FAILED",
+            txHash: tx.state.txHash,
+            jobId: log.args.jobId!,
+            error: "Job removed by cleanup (expired)",
+            errorCategory: "async",
+            failedAt: tx.state.status,
+          });
+        }
       }
     },
   });
@@ -1105,20 +1159,20 @@ Grid of available precompiles for user selection. Ritual-specific data:
 
 ```typescript
 const PRECOMPILES = [
-  { id: "http",     name: "HTTP Call",  address: "0x0801", category: "data" },
-  { id: "llm",      name: "LLM",       address: "0x0802", category: "inference" },
-  { id: "longhttp", name: "Long HTTP",  address: "0x0805", category: "data" },
-  { id: "zk",       name: "ZK Proof",   address: "0x0806", category: "data" },
-  { id: "sovereign", name: "Sovereign Agent", address: "0x080C", category: "agent" },
-  { id: "image",    name: "Image Gen",  address: "0x0818", category: "multimodal" },
-  { id: "audio",    name: "Audio Gen",  address: "0x0819", category: "multimodal" },
-  { id: "video",    name: "Video Gen",  address: "0x081A", category: "multimodal" },
+  { id: "http",     name: "HTTP Call",  address: "0x0000000000000000000000000000000000000801", category: "data" },
+  { id: "llm",      name: "LLM",       address: "0x0000000000000000000000000000000000000802", category: "inference" },
+  { id: "longhttp", name: "Long HTTP",  address: "0x0000000000000000000000000000000000000805", category: "data" },
+  { id: "zk",       name: "ZK Proof",   address: "0x0000000000000000000000000000000000000806", category: "data" },
+  { id: "sovereign", name: "Sovereign Agent", address: "0x000000000000000000000000000000000000080C", category: "agent" },
+  { id: "image",    name: "Image Gen",  address: "0x0000000000000000000000000000000000000818", category: "multimodal" },
+  { id: "audio",    name: "Audio Gen",  address: "0x0000000000000000000000000000000000000819", category: "multimodal" },
+  { id: "video",    name: "Video Gen",  address: "0x000000000000000000000000000000000000081A", category: "multimodal" },
 ] as const;
 ```
 
 ### FeeEstimateDisplay
 
-Shows fee breakdown. Format wei to RITUAL: `Number(wei) / 1e18`, display with 4 decimal places. Show `totalFee` and `lockDuration` (in blocks).
+Shows fee breakdown. Format wei to RITUAL with `formatEther(wei)` from viem (never `Number(wei) / 1e18` — `Number(bigint)` loses precision past 2^53), display with 4 decimal places. Show `totalFee` and `lockDuration` (in blocks).
 
 ---
 
