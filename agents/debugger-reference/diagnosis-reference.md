@@ -175,6 +175,8 @@ Match symptom → apply fix. If no pattern matches, use the diagnostic flow abov
 | 18 | Callback never received | Wrong callback signature | Must be `(bytes32 jobId, bytes calldata responseData)` — 2 params. `deliverySelector` must match. | `ritual-dapp-multimodal` |
 | 19 | TX mines, callback never arrives | Silent Phase 2 failure | See ref for full debugging checklist (ECIES, storageType, credentials, lock) | `ritual-dapp-multimodal` |
 | 20 | `cipher: message authentication failed` | ECIES encryption config wrong | Configure ECIES per `ritual-dapp-secrets` (nonce length, key selection) | `ritual-dapp-secrets` |
+| 27 | `... precompile call failed` (`require(ok, ...)` in consumer) | Precompile-level reject: bad field count/order, TTL out of 1–500, RitualWallet lock, wrong executor | Verify encoding against the precompile ABI table, TTL range, wallet lock, executor `teeAddress` | `ritual-dapp-precompiles` |
+| 28 | `unauthorized callback sender` | Callback not from AsyncDelivery `0x5A16214fF555848411544b005f7Ac063742f39F6` (wrong `deliverySelector`/target) | Verify `deliveryTarget`/`deliverySelector`; simulate with `cast call` | `ritual-dapp-contracts` |
 
 ### ONNX-Specific
 

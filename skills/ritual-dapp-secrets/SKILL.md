@@ -349,7 +349,7 @@ Secret template transactions can fail silently. Common causes:
 
 1. **Empty `encryptedSecrets`**: If `encryptedSecrets` is empty, no substitution runs and your request sends literal placeholders.
 
-2. **Signature mismatch**: The executor recovers the signer from each signature. If the recovered address doesn't match `tx.origin`, delegation is checked via `SecretsAccessControl`. Denied access returns HTTP 402 in the executor response (not a revert).
+2. **Signature mismatch**: The executor recovers the signer from each signature. If the recovered address doesn't match `tx.origin`, delegation is checked via `SecretsAccessControl`. Denied access returns HTTP 402 in the executor response (not a revert). NOTE: this 402 is a *delegation denial* (check `errorMessage`/secrets policy) — do not confuse it with the premium-API *billing* 402 (`statusCode==402` with API body, see `ritual-dapp-x402` error table).
 
 3. **Check the receipt for errors**: Executor errors appear in the settled transaction receipt, not as reverts:
 ```typescript

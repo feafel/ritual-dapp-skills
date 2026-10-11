@@ -270,7 +270,7 @@ See `ritual-dapp-longrunning` for the full 0x0805 encoding format. Add the encry
 | `Budget exceeded` | User hit per-address spending limit | Admin resets budget or increases limit |
 | `Secret template not found` | `SECRET_NAME` in URL/headers doesn't match any key in encrypted JSON | Verify key names match exactly (case-sensitive) |
 | `Paid API call failed` | Invalid encrypted credentials or malformed URL | Re-encrypt credentials, verify API URL format |
-| HTTP 402 Payment Required | Premium API rejected the payment token | Check that the decrypted credential is valid and funded |
+| HTTP 402 Payment Required | Premium API rejected the payment token (billing 402: `statusCode==402` with API body) — NOT the secrets-delegation 402 (executor `errorMessage`, see `ritual-dapp-secrets`) | Check that the decrypted credential is valid and funded |
 | HTTP 401 Unauthorized | Decrypted credentials expired or revoked | Re-encrypt with fresh credentials |
 | `insufficient deposit` | RitualWallet underfunded for HTTP call fees | Deposit more RITUAL via `ritual-dapp-wallet` pattern |
 | `Only precompile` (if access control is correct) | Someone attempted to spoof the callback | Expected behavior — the access control is working |
