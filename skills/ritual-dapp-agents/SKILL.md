@@ -837,6 +837,34 @@ contract SovereignAgentHarness {
 
     // --- Core lifecycle ---
 
+    constructor(
+        ISchedulerHarness _scheduler,
+        IRitualWallet _ritualWallet,
+        ITEEServiceRegistry _teeRegistry,
+        address _asyncDelivery
+    ) {
+        owner = msg.sender;
+        scheduler = _scheduler;
+        ritualWallet = _ritualWallet;
+        teeRegistry = _teeRegistry;
+        asyncDelivery = _asyncDelivery;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    modifier onlyScheduler() {
+        require(msg.sender == address(scheduler), "Not scheduler");
+        _;
+    }
+
+    modifier onlyAsyncDelivery() {
+        require(msg.sender == asyncDelivery, "Not async delivery");
+        _;
+    }
+
     function configureFundAndStart(
         SovereignAgentParams calldata p,
         SovereignScheduleConfig calldata s,

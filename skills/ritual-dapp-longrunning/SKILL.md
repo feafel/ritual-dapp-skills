@@ -487,7 +487,9 @@ contract AIResearchConsumer is LongRunningHTTPConsumer {
     }
 
     function _processResult(bytes32 jobId, bytes memory body) internal override {
-        string memory summary = abi.decode(body, (string));
+        // body is raw HTTP response bytes (e.g. JSON), NOT an ABI-encoded
+        // string — abi.decode(body, (string)) reverts out-of-bounds.
+        string memory summary = string(body);
         // jobId comes from AsyncDelivery callback and is not derivable from taskId.
         // Persist by callback jobId and correlate taskId off-chain via events if needed.
         research[jobId].query = "";
@@ -893,7 +895,7 @@ contract ScheduledResearchConsumer {
             abi.decode(result, (uint16, string[], string[], bytes, string));
 
         if (statusCode >= 200 && statusCode < 300 && bytes(errorMessage).length == 0) {
-            latestResult = abi.decode(body, (string));
+            latestResult = string(body); // raw bytes, not ABI-encoded
             emit ScheduledJobCompleted(block.number, latestResult);
         }
     }

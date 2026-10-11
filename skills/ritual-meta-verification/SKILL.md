@@ -210,7 +210,7 @@ For checks with deterministic fixes, the protocol specifies the exact transforma
 
 | # | Check | Tier | Confidence | Command | Auto-Fix |
 |---|-------|------|-----------|---------|----------|
-| 1 | Precompile address 0x0100 | T1 | HIGH | Grep for `address(0x100)` or full padded address | Fix address |
+| 1 | Precompile address 0x0100 | T1 | HIGH | Grep for `address(0x0100)` or full padded address | Fix address |
 | 2 | S-normalization present | T1 | HIGH | Grep for `normalizeS`/`P256_HALF_N`/`halfN` | Add normalizeS function from passkey skill |
 | 3 | Address derivation: hash(x\|\|y) NOT hash(04\|\|x\|\|y) | T1 | MEDIUM | Check that keccak256 input is concat of x,y without 0x04 prefix | Remove 0x04 from hash input |
 | 4 | Verification roundtrip | T2 | HIGH | eth_call to 0x0100 with known test vector | Debug encoding |

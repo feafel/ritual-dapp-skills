@@ -207,6 +207,29 @@ contract X402Consumer {
     uint256 public costPerCall;
     mapping(address => uint256) public budgetUsed;
     mapping(address => uint256) public budgetLimit;
+    address public owner;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    constructor(uint256 _costPerCall) {
+        owner = msg.sender;
+        costPerCall = _costPerCall;
+    }
+
+    function setCost(uint256 c) external onlyOwner {
+        costPerCall = c;
+    }
+
+    function setBudget(address user, uint256 limit) external onlyOwner {
+        budgetLimit[user] = limit;
+    }
+
+    function resetBudget(address user) external onlyOwner {
+        budgetUsed[user] = 0;
+    }
 
     function fetchPaidData(
         address executor, uint256 ttl, string calldata url,
