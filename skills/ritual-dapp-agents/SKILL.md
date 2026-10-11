@@ -1742,13 +1742,22 @@ Drivers of this failure (in rough order of frequency):
 **Required consumer pattern.** Every sovereign-agent consumer that expects a structured response must defensively decode in this order:
 
 ```solidity
+// Tuple components cannot be inlined in abi.decode — declare the struct.
+struct StorageRef {
+    string platform;
+    string path;
+    string keyRef;
+}
+
 // In your callback (onSovereignAgentResult or equivalent)
 function onSovereignAgentResult(bytes32 jobId, bytes calldata result) external {
     require(msg.sender == ASYNC_DELIVERY, "unauthorized");
 
     // 1. Decode the outer SovereignAgent envelope
-    (bool success, string memory error, string memory text, /* convoHistory */, /* output */, /* artifacts */) =
-        abi.decode(result, (bool, string, string, (string,string,string), (string,string,string), (string,string,string)[]));
+    (bool success, string memory error, string memory text,
+     StorageRef memory convoHistory, StorageRef memory output,
+     StorageRef[] memory artifacts) =
+        abi.decode(result, (bool, string, string, StorageRef, StorageRef, StorageRef[]));
 
     // 2. Treat success=false OR non-empty error as a hard failure — do not parse text
     if (!success || bytes(error).length != 0) {
