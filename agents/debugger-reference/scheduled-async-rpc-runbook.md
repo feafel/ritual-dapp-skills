@@ -32,9 +32,22 @@ import sys
 import requests
 
 CALL_SCHEDULED_TOPIC = "0xcaca4474e4e795729bb2ff72d20cbac301679d1329458aba9cc4a52235266949"
+# NOTE: no canonical `event CallScheduled(...)` definition exists in the
+# skills — verify before trusting a match: `cast keccak` the published
+# signature once the scheduler skill documents it, and confirm the
+# topic-index/data-word layout below. Until then hashes are best-effort.
 EXECUTE_SELECTOR = bytes.fromhex("5601eaea")
 SCHEDULED_TX_TYPE = b"\x10"
 DEFAULT_SCHEDULER = "0x56e776BAE2DD60664b69Bd5F865F1180ffB7D58B"
+CHAIN_ID = 1979  # Ritual Chain — asserted against eth_chainId in main()
+
+# EXPERIMENTAL: the scheduled-tx preimage layout below is RECONSTRUCTED, not
+# canonical. Three known uncertainties: (1) fields must be RLP-list-wrapped
+# (typed-tx convention: keccak(type || rlp([fields]))); (2) the first field
+# is assumed to be the chain id; (3) field ORDER (incl. gas placement) must
+# be confirmed against the node implementation before trusting a match.
+# Non-matches prove nothing until the layout is canonicalized.
+MAX_EXECUTIONS = 10000  # scheduler MAX_LIFESPAN guard for the derived loop
 
 
 def normalize_hash(value: str) -> str:
@@ -72,6 +85,8 @@ def read_word(data_hex: str, idx: int) -> int:
     data = data_hex[2:] if data_hex.startswith("0x") else data_hex
     start = idx * 64
     end = start + 64
+    if len(data) < end:
+        raise ValueError(f"receipt data too short: need word {idx}")
     return int(data[start:end], 16)
 
 
@@ -99,6 +114,20 @@ def rlp_int(value: int) -> bytes:
     return rlp_bytes(int_to_be(value))
 
 
+def rlp_list(items: list[bytes]) -> bytes:
+    payload = b"".join(items)
+    if len(payload) <= 55:
+        return bytes([0xC0 + len(payload)]) + payload
+    lb = int_to_be(len(payload))
+    return bytes([0xF7 + len(lb)]) + lb + payload
+
+
+def assert_chain_id(rpc_url: str) -> None:
+    chain = rpc_call(rpc_url, "eth_chainId", [])
+    if int(str(chain), 16) != CHAIN_ID:
+        raise SystemExit(f"wrong chain: {chain} (expected 1979/Ritual)")
+
+
 def keccak_hex(payload: bytes) -> str:
     if shutil.which("cast") is None:
         raise RuntimeError("cast is required")
@@ -122,16 +151,18 @@ def compute_hash(
     max_fee_per_gas: int,
     max_priority_fee_per_gas: int,
     value: int,
+    gas: int,
 ) -> str:
     execute_calldata = (
         EXECUTE_SELECTOR + call_id.to_bytes(32, "big") + execution_index.to_bytes(32, "big")
     )
     fields = [
-        rlp_int((1 << 64) - 1),
+        rlp_int(CHAIN_ID),
         rlp_int(max_fee_per_gas),
         rlp_int(max_priority_fee_per_gas),
         rlp_bytes(bytes.fromhex(scheduler[2:])),
         rlp_int(value),
+        rlp_int(gas),  # reconstructed position — confirm against node impl
         rlp_bytes(execute_calldata),
         rlp_bytes(bytes.fromhex(origin_hash[2:])),
         rlp_int(call_id),
@@ -141,7 +172,7 @@ def compute_hash(
         rlp_int(ttl),
         rlp_bytes(bytes.fromhex(caller[2:])),
     ]
-    return keccak_hex(SCHEDULED_TX_TYPE + b"".join(fields))
+    return keccak_hex(SCHEDULED_TX_TYPE + rlp_list(fields))
 
 
 def main() -> None:
@@ -151,6 +182,7 @@ def main() -> None:
     parser.add_argument("--scheduler-address", default=DEFAULT_SCHEDULER)
     args = parser.parse_args()
 
+    assert_chain_id(args.rpc_url)
     origin_hash = normalize_hash(args.hash)
     scheduler = normalize_address(args.scheduler_address)
 
@@ -175,6 +207,7 @@ def main() -> None:
         start_block = read_word(data, 0)
         num_calls = read_word(data, 1)
         frequency = read_word(data, 2)
+        gas = read_word(data, 3)
         ttl = read_word(data, 4)
         max_fee_per_gas = read_word(data, 5)
         max_priority_fee_per_gas = read_word(data, 6)
@@ -184,7 +217,10 @@ def main() -> None:
             f"\ncall id={call_id} caller={caller} start={start_block} num_calls={num_calls} "
             f"frequency={frequency} ttl={ttl}"
         )
-        for execution_index in range(num_calls):
+        total = min(num_calls, MAX_EXECUTIONS)
+        if num_calls > MAX_EXECUTIONS:
+            print(f"  WARNING: num_calls={num_calls} exceeds cap; showing first {MAX_EXECUTIONS}")
+        for execution_index in range(total):
             expected_block = start_block + (execution_index * frequency)
             scheduled_hash = compute_hash(
                 scheduler=scheduler,
@@ -198,6 +234,7 @@ def main() -> None:
                 max_fee_per_gas=max_fee_per_gas,
                 max_priority_fee_per_gas=max_priority_fee_per_gas,
                 value=value,
+                gas=gas,
             )
             print(
                 f"  index={execution_index:>3} block={expected_block:>10} scheduled_hash={scheduled_hash}"
@@ -238,6 +275,8 @@ ASYNC_TRACKER = "0xC069FFCa0389f44eCA2C626e55491b0ab045AEF5"
 JOB_ADDED_TOPIC = "0xdc816fe478e06924e13d5c802912a8d7931e9a96b8443fe00d3f27c2da756cdf"
 PHASE1_SETTLED_TOPIC = "0x37f71b8eed16673ade1472b9c4d690c8d8cdfb7fd0f55f9cf2c9c9e679f04db4"
 JOB_REMOVED_TOPIC = "0x59725cef98fe1b85530b2a0a150f88c48a08cca2cafed999590140955f67b540"
+# cast keccak "ResultDelivered(bytes32,address,bool)"
+RESULT_DELIVERED_TOPIC = "0x2408d34acb7d6f4dad6457f2ca70bfb06726b96d079e038a75d21b69ec26537c"
 
 
 @dataclass(frozen=True)
@@ -251,6 +290,7 @@ class Hit:
     phase1_settled: bool
     removed: bool
     removed_completed: bool | None
+    delivered: bool
 
 
 def normalize_hash(value: str) -> str:
@@ -295,6 +335,8 @@ def decode_indexed_address(topic_hex: str) -> str:
 
 def read_word(data_hex: str, idx: int) -> int:
     data = data_hex[2:] if data_hex.startswith("0x") else data_hex
+    if len(data) < (idx + 1) * 64:
+        raise ValueError(f"receipt data too short: need word {idx}")
     return int(data[idx * 64 : (idx + 1) * 64], 16)
 
 
@@ -335,15 +377,29 @@ def removed_status(
         return False, None
     topics = logs[0].get("topics", [])
     if isinstance(topics, list) and len(topics) >= 4:
-        return True, str(topics[3]).lower().endswith("1")
+        # 32-byte 0/1 only — endswith("1") misreads 0x..11 as completed.
+        val = int(str(topics[3]), 16)
+        if val == 1:
+            return True, True
+        if val == 0:
+            return True, False
+        return True, None  # non-bool value: unknown completion
     return True, None
 
 
-def infer_status(phase1: bool, removed: bool, completed: bool | None) -> str:
+def infer_status(
+    phase1: bool, removed: bool, completed: bool | None, delivered: bool | None
+) -> str:
+    # JobRemoved(true) alone only confirms removal for short-running; delivery
+    # success needs ResultDelivered(success=true) — don't conflate them.
+    if removed and completed is True and delivered is True:
+        return "delivery_success"
     if removed and completed is True:
-        return "completed_or_delivered"
+        return "removed_completed_delivery_unconfirmed"
     if removed and completed is False:
         return "removed_incomplete_or_expired"
+    if removed:
+        return "removed_unknown_completion"
     if phase1:
         return "phase1_settled_waiting_for_removal"
     return "commitment_seen_pending_or_processing"
@@ -357,6 +413,9 @@ def main() -> None:
     parser.add_argument("--async-job-tracker-address", default=ASYNC_TRACKER)
     args = parser.parse_args()
 
+    chain = rpc_call(args.rpc_url, "eth_chainId", [])
+    if int(str(chain), 16) != 1979:
+        raise SystemExit(f"wrong chain: {chain} (expected 1979/Ritual)")
     origin_hash = normalize_hash(args.hash)
     tracker = normalize_address(args.async_job_tracker_address)
     head = int(str(rpc_call(args.rpc_url, "eth_blockNumber", [])), 16)
@@ -390,6 +449,9 @@ def main() -> None:
         removed, completed = removed_status(
             args.rpc_url, tracker, from_block, head, job_id
         )
+        delivered = has_log(
+            args.rpc_url, tracker, from_block, head, [RESULT_DELIVERED_TOPIC, job_id]
+        )
         hits.append(
             Hit(
                 tx_hash=str(log.get("transactionHash", "")).lower(),
@@ -401,6 +463,7 @@ def main() -> None:
                 phase1_settled=phase1,
                 removed=removed,
                 removed_completed=completed,
+                delivered=delivered,
             )
         )
 
@@ -412,7 +475,11 @@ def main() -> None:
         raise SystemExit("No commitment tx found in scanned range.")
 
     for idx, hit in enumerate(hits):
-        status = infer_status(hit.phase1_settled, hit.removed, hit.removed_completed)
+        status = infer_status(
+            hit.phase1_settled, hit.removed, hit.removed_completed, hit.delivered
+        )
+        # Phase-1 deadline only; long-running Phase 2 runs to
+        # settledBlock + maxPollBlock (see ritual-dapp-backend).
         expiry = hit.commit_block + hit.ttl
         print(
             f"[{idx}] block={hit.block} tx={hit.tx_hash} job_id={hit.job_id} "
