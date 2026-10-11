@@ -728,6 +728,8 @@ const HTTP_PRECOMPILE: Address = '0x0000000000000000000000000000000000000801';
 const ritualWalletAbi = [
   { name: 'balanceOf', type: 'function', stateMutability: 'view',
     inputs: [{ name: 'user', type: 'address' }], outputs: [{ type: 'uint256' }] },
+  { name: 'lockUntil', type: 'function', stateMutability: 'view',
+    inputs: [{ name: 'user', type: 'address' }], outputs: [{ type: 'uint256' }] },
   { name: 'deposit', type: 'function', stateMutability: 'payable',
     inputs: [{ name: 'lockDuration', type: 'uint256' }], outputs: [] },
 ] as const;
@@ -738,14 +740,25 @@ describe('HTTP Call (integration)', () => {
   beforeAll(async () => {
     clients = getTestClients();
 
-    const balance = await clients.publicClient.readContract({
-      address: RITUAL_WALLET,
-      abi: ritualWalletAbi,
-      functionName: 'balanceOf',
-      args: [clients.account.address],
-    });
+    const [balance, lockUntil] = await Promise.all([
+      clients.publicClient.readContract({
+        address: RITUAL_WALLET,
+        abi: ritualWalletAbi,
+        functionName: 'balanceOf',
+        args: [clients.account.address],
+      }),
+      clients.publicClient.readContract({
+        address: RITUAL_WALLET,
+        abi: ritualWalletAbi,
+        functionName: 'lockUntil',
+        args: [clients.account.address],
+      }),
+    ]);
+    const currentBlock = await clients.publicClient.getBlockNumber();
 
-    if (balance < parseEther('0.01')) {
+    // Balance alone is not enough: an expired lock rejects the request.
+    // Re-depositing is safe (lock only extends).
+    if (balance < parseEther('0.01') || lockUntil < currentBlock + 5000n) {
       const hash = await clients.walletClient.writeContract({
         address: RITUAL_WALLET,
         abi: ritualWalletAbi,

@@ -122,17 +122,31 @@ import { parseEther, formatEther } from 'viem';
 const RITUAL_WALLET = '0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948' as const;
 const RITUAL_WALLET_ABI = [
   { inputs: [{ name: 'user', type: 'address' }], name: 'balanceOf', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
+  { inputs: [{ name: 'user', type: 'address' }], name: 'lockUntil', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
   { inputs: [{ name: 'lockDuration', type: 'uint256' }], name: 'deposit', outputs: [], stateMutability: 'payable', type: 'function' },
 ] as const;
 
-const balance = await publicClient.readContract({
-  address: RITUAL_WALLET,
-  abi: RITUAL_WALLET_ABI,
-  functionName: 'balanceOf',
-  args: [account.address],
+const [balance, lockUntil] = await Promise.all([
+  publicClient.readContract({
+    address: RITUAL_WALLET,
+    abi: RITUAL_WALLET_ABI,
+    functionName: 'balanceOf',
+    args: [account.address],
+  }),
+  publicClient.readContract({
+    address: RITUAL_WALLET,
+    abi: RITUAL_WALLET_ABI,
+    functionName: 'lockUntil',
+    args: [account.address],
+  }),
 });
+const currentBlock = await publicClient.getBlockNumber();
 
-if (balance < parseEther('0.01')) {
+// Async settlement requires BOTH balance and lockUntil >= commitBlock + ttl.
+// A funded-but-unlocked (or expired-lock) wallet is rejected, so check both.
+// Re-depositing is safe: lock only extends, never shortens.
+const MIN_TTL = 5000n; // must cover your longest job ttl
+if (balance < parseEther('0.01') || lockUntil < currentBlock + MIN_TTL) {
   const hash = await walletClient.writeContract({
     address: RITUAL_WALLET,
     abi: RITUAL_WALLET_ABI,
