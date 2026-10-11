@@ -138,7 +138,7 @@ Read the user's message FIRST. If it contains a clear intent signal, route immed
 | 1 (urgent) | Reports a problem ("broken", "stuck", "not working", "error", "debug", "fix", "revert", "fail") | `ritual-dapp-debugger` agent |
 | 2 (build) | Describes what they want to build ("build me...", "create a...", "I want an app that...") | Projection skill → `ritual-dapp-builder` agent |
 | 3 (learn) | Asks how something works ("how does...", "what is...", "explain...", "tell me about...") | `ritual-dapp-skills:ritual-dapp-overview` |
-| 4 (specific) | Names a specific precompile or feature (LLM, HTTP, agent, scheduler, passkey, ZK, multimodal) | The matching skill directly (see routing table below) |
+| 4 (specific) | Names a specific precompile or feature (LLM, HTTP, agent, scheduler, passkey, ZK, multimodal) | The matching skill directly (see routing table below; ZK has no dedicated skill yet — route to `ritual-dapp-precompiles` ZK Long-Running section) |
 | 5 (lost) | Typed `/ritual` with no other context, OR message is genuinely ambiguous | Run the inspiration skill (Step 2) |
 
 **Debug wins all ties.** Someone who says "help me debug my frontend build" is in pain — route to the debugger, not the builder.
@@ -196,6 +196,7 @@ For direct routing when the user names a specific topic:
 | Fee management | `ritual-dapp-skills:ritual-dapp-wallet` |
 | X402 payments | `ritual-dapp-skills:ritual-dapp-x402` |
 | Passkey auth | `ritual-dapp-skills:ritual-dapp-passkey` |
+| ZK proofs (no dedicated skill) | `ritual-dapp-skills:ritual-dapp-precompiles` (ZK Long-Running section) |
 
 ## Numbered Menu Routing (for Step 3)
 
