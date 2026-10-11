@@ -107,7 +107,7 @@ Map chain events to status transitions (event signatures are in `IAsyncJobTracke
 | Transaction submitted (your code) | → `SUBMITTING` |
 | Transaction mined | → `PENDING_COMMITMENT` |
 | `JobAdded` event | → `COMMITTED` (executor was assigned at job admission) |
-| `Phase1Settled` event (long-running only — Phase 1 fees paid, Phase 2 deadline armed) | → `RESULT_READY` |
+| `Phase1Settled` event (long-running only — Phase 1 fees paid, Phase 2 deadline armed; the off-chain work runs *after* this event) | → `EXECUTOR_PROCESSING` (explicitly NOT result-ready) |
 | `ResultDelivered` event (`success=true`) | → `SETTLED` |
 | `ResultDelivered` event (`success=false`) | → `FAILED` |
 | `JobRemoved(completed=true)` event | confirm `SETTLED` (short-running async — no `Phase1Settled` is emitted for these) |
@@ -116,7 +116,9 @@ Map chain events to status transitions (event signatures are in `IAsyncJobTracke
 | `AsyncDelivery.DeliveryFailed` | → `FAILED` (RitualWallet insufficient for executor or callback gas+value) |
 | Block exceeds `commitBlock + ttl` (long-running: `markPhase1Settled` extends to `commitBlock + maxPollBlock`) | → `EXPIRED` once the next cleanup pass removes the row |
 
-> **`Phase1Settled` does not mean the job result is ready.** For long-running async (Long HTTP, Sovereign Agent, Persistent Agent, Image / Audio / Video, ZK, FHE) it means the executor's settlement TX paid Phase 1 fees and armed the Phase 2 deadline; the off-chain work runs *after* this event. For short-running async (HTTP, LLM, ONNX, JQ, DKMS) `Phase1Settled` is **never emitted** — the result lands in the receipt's `spcCalls` and `JobRemoved(completed=true)` fires.
+> `RESULT_READY` and `PENDING_SETTLEMENT` are application-level states with **no tracker event**: use them for "callback observed, processing" / "awaiting confirmations" if you need them. No event maps to them — do not set them from `Phase1Settled` (that regression showed users a false "ready").
+
+> **`Phase1Settled` does not mean the job result is ready.** For long-running async (Long HTTP, Sovereign Agent, Persistent Agent, Image / Audio / Video, ZK, FHE) it means the executor's settlement TX paid Phase 1 fees and armed the Phase 2 deadline; the off-chain work runs *after* this event. For short-running async (HTTP, LLM, DKMS) `Phase1Settled` is **never emitted** — the result lands in the receipt's `spcCalls` and `JobRemoved(completed=true)` fires. (ONNX, JQ, Ed25519, SECP256R1 are synchronous — no async lifecycle at all.)
 
 ---
 
@@ -266,10 +268,10 @@ Wire `publicClient.watchEvent` for each of the four tracker events (`JobAdded`, 
 
 | Event | Action |
 |-------|--------|
-| `JobAdded` | Upsert job with `status: PENDING_COMMITMENT`, store `sender` (from `senderAddress` field), `precompile`, `commitBlock`, `ttl`, `txHash` |
-| `Phase1Settled` | Update to `status: COMMITTED`, store `executor` |
+| `JobAdded` | Upsert job with `status: COMMITTED`, store `sender` (from `senderAddress` field), `executor`, `precompile`, `commitBlock`, `ttl`, `txHash` |
+| `Phase1Settled` | Update to `status: EXECUTOR_PROCESSING` (long-running only — Phase 1 fees paid, deadline armed; NOT result-ready) |
 | `ResultDelivered` | If `success=true`, call `onJobSettled`. If `success=false`, set `status: FAILED` |
-| `JobRemoved` | Confirm `status: SETTLED` (if `completed=true`) |
+| `JobRemoved` | If `completed=true`, confirm `status: SETTLED`. If `completed=false`, set `status: EXPIRED` (cleanup pass) |
 
 Use `upsertJob` (not insert) so replayed events from reorgs or backfills don't create duplicates.
 
@@ -309,7 +311,7 @@ Polls `AsyncJobTracker.getJob` for jobs where events alone aren't sufficient (e.
 Key semantics for the monitor:
 
 - **Expiry detection:** The `Job` struct has `commitBlock` and `ttl` but no `expiryBlock` field. Compute expiry as `commitBlock + ttl` and compare against the current block number.
-- **Settlement detection for short-running async jobs:** When a short-running async job (HTTP, LLM) settles, it is **removed** from the tracker. A `getJob` call will revert with "not found". Catch this revert and treat it as settled (cross-check against your `ResultDelivered` event log).
+- **Settlement detection for short-running async jobs:** When a short-running async job (HTTP, LLM, DKMS) settles, it is **removed** from the tracker. A `getJob` call will revert with "not found". Never map "not found" to a status blindly — resolve it via the `JobRemoved(jobId, completed)` event: `completed=true` → `SETTLED`, `completed=false` → `EXPIRED` (cleanup pass). No event yet → leave the row for the next tick.
 - **Phase 1 detection for long-running async jobs:** The `phase1Settled` field is only meaningful for long-running async precompiles. It indicates Phase 1 is complete and the sender nonce lock is released, NOT that the final result has been delivered.
 
 ```typescript
@@ -343,12 +345,37 @@ async function monitorTick(db: Database) {
       }
     } catch (err: any) {
       if (err.message?.includes('not found')) {
-        await db.updateJob(job.jobId, { status: 'SETTLED' });
+        // Removed from the tracker — find out WHY via JobRemoved(completed):
+        // completed=true  -> SETTLED (short-running async settled)
+        // completed=false -> EXPIRED (cleanup pass removed a dead job)
+        // no event yet    -> indexer lag; leave for the next tick, never guess
+        const removal = await findJobRemovedEvent(job.jobId);
+        if (!removal) continue;
+        await db.updateJob(job.jobId, {
+          status: removal.completed ? 'SETTLED' : 'EXPIRED',
+        });
       } else {
         console.error(`Error polling job ${job.jobId}:`, err);
       }
     }
   }
+}
+
+// JobRemoved(address indexed executor, bytes32 indexed jobId, bool indexed completed)
+async function findJobRemovedEvent(
+  jobId: string,
+): Promise<{ completed: boolean } | null> {
+  const logs = await publicClient.getContractEvents({
+    address: ASYNC_JOB_TRACKER,
+    abi: asyncJobTrackerAbi,
+    eventName: 'JobRemoved',
+    args: { jobId: jobId as `0x${string}` },
+    fromBlock: 0n,
+    toBlock: 'latest',
+  });
+  if (logs.length === 0) return null;
+  const { completed } = logs[logs.length - 1].args as { completed: boolean };
+  return { completed };
 }
 ```
 
@@ -520,7 +547,7 @@ RITUAL_WS_URL=wss://rpc.ritualfoundation.org/ws
 | RPC (HTTP) | `https://rpc.ritualfoundation.org` |
 | RPC (WebSocket) | `wss://rpc.ritualfoundation.org/ws` |
 | Sender lock | One pending async job per EOA |
-| Lifecycle states | SUBMITTING → PENDING_COMMITMENT → COMMITTED → EXECUTOR_PROCESSING → RESULT_READY → PENDING_SETTLEMENT → SETTLED / FAILED / EXPIRED |
+| Lifecycle states | SUBMITTING → PENDING_COMMITMENT → COMMITTED → EXECUTOR_PROCESSING → SETTLED / FAILED / EXPIRED (`RESULT_READY`, `PENDING_SETTLEMENT` are app-level only — no tracker event maps to them) |
 
 ### Related Skills
 
