@@ -222,7 +222,7 @@ function WalletBalance() {
 
   return (
     <div>
-      <p>Balance: {balance ? formatEther(balance) : '...'} RITUAL</p>
+      <p>Balance: {balance !== undefined ? formatEther(balance) : '...'} RITUAL</p>
       <p>Lock expires: block {lockExpiry?.toString() ?? '...'}</p>
     </div>
   );
@@ -302,13 +302,13 @@ AsyncDelivery follows the same fund sink pattern as the Scheduler: it holds RITU
 | Use Case | Lock Duration | Deposit Estimate (with headroom) |
 |---|---|---|
 | Single HTTP call | `ttl + buffer` (~600 blocks) | 0.01 RITUAL |
-| Single LLM call | `ttl + buffer` (~600 blocks) | 0.05 RITUAL (model + token-count dependent) |
+| Single LLM call | `ttl + buffer` (~600 blocks) | 0.4–0.5 RITUAL for GLM-4.7-FP8 (escrow ~0.31/in-flight call; 0.05 covers ~16% and reverts) |
 | Sovereign Agent job | `ttl + maxPollBlock` (~1500 blocks min, often more) | **1 RITUAL per intended run** (deep agents with several iterations + tool calls have been measured at **0.5 - 1 RITUAL** — one user reported 0.86 RITUAL for a single run) |
 | Persistent Agent job | `ttl + maxPollBlock` (~1500 blocks) | 0.5 - 1 RITUAL (similar shape to Sovereign) |
 | Scheduled recurring (N calls) | `startBlock + frequency * numCalls - block.number` | N × (per-call cost + `gasLimit × maxFeePerGas`) |
 | Image / Audio / Video generation | `ttl + maxPollBlock` (~1500 blocks) | 0.01+ RITUAL (resolution / duration dependent) |
 
-> **Lock duration on Ritual's ~350ms conservative baseline:** 5,000 blocks ≈ 29 minutes, 10,000 ≈ 58 minutes. For development, use `100,000` blocks (~9.7 hours) to avoid lock expiry during iteration. The lock only extends (never shortens), so over-locking has no downside. Confirm against current cadence with `ritual-dapp-block-time`.
+> **Lock duration on Ritual's ~350ms conservative baseline:** 5,000 blocks ≈ 29 minutes, 10,000 ≈ 58 minutes. For development, use `5,000` blocks (~29 min); extend for longer sessions. Over-locking only delays withdrawal, never costs extra. The lock only extends (never shortens), so over-locking has no downside. Confirm against current cadence with `ritual-dapp-block-time`.
 
 ### Where the cost actually comes from (and why agent calls dominate)
 
@@ -318,10 +318,10 @@ Most of the per-call cost surfaces in **Phase 2** of long-running async, not Pha
 |-----------|----------|-------|
 | HTTP executor base fee | `HTTP_EXECUTOR_BASE_FEE_WEI = 2_500_000_000_000` | Per call, plus per-byte rates for request / response body |
 | LLM executor gas price | `LLM_EXECUTOR_GAS_PRICE_WEI = 1_000_000_000` (1 gwei) | Multiplied by `llm_compute_gas(prompt_tokens, completion_tokens, model.params_b, model.theta)`. Bigger prompts and bigger models cost more, super-linearly past 2K and 4K tokens. |
-| LLM error fee (when `has_error=true` is returned) | `LLM_ERROR_EXECUTOR_FEE_WEI = 500_000_000_000` (0.0000005 ETH) | Even failed LLM calls pay a small executor fee. |
-| Sovereign Agent Phase 1 settlement | `SOVEREIGN_AGENT_PHASE1_SETTLEMENT_FEE_WEI = 500_000_000_000` (0.0000005 ETH) | Tiny — just orchestration. |
-| Sovereign Agent per ReAct iteration | `SOVEREIGN_AGENT_ITERATION_FEE_WEI = 115_000_000_000_000` (0.000115 ETH) | Each LLM-step iteration adds this. |
-| Sovereign Agent per tool call | `SOVEREIGN_AGENT_TOOL_CALL_FEE_WEI = 230_000_000_000_000` (0.00023 ETH) | Each tool execution adds this. |
+| LLM error fee (when `has_error=true` is returned) | `LLM_ERROR_EXECUTOR_FEE_WEI = 500_000_000_000` (0.0000005 RITUAL) | Even failed LLM calls pay a small executor fee. |
+| Sovereign Agent Phase 1 settlement | `SOVEREIGN_AGENT_PHASE1_SETTLEMENT_FEE_WEI = 500_000_000_000` (0.0000005 RITUAL) | Tiny — just orchestration. |
+| Sovereign Agent per ReAct iteration | `SOVEREIGN_AGENT_ITERATION_FEE_WEI = 115_000_000_000_000` (0.000115 RITUAL) | Each LLM-step iteration adds this. |
+| Sovereign Agent per tool call | `SOVEREIGN_AGENT_TOOL_CALL_FEE_WEI = 230_000_000_000_000` (0.00023 RITUAL) | Each tool execution adds this. |
 
 Plus the user always pays the **callback gas escrow**: `deliveryGasLimit × deliveryMaxFeePerGas + deliveryValue` — this is escrowed at submit time and a portion is refunded if the callback uses less. For a `deliveryGasLimit` of `500_000` at 1 gwei that's `5×10¹⁴ wei = 0.0005 RITUAL` of escrow per call.
 
