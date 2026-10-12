@@ -274,22 +274,38 @@ HTTP (0x0801) and Long-Running HTTP (0x0805) append these fields after the core 
 
 ## Callback Security
 
-All long-running async callbacks are delivered by the AsyncDelivery contract. Always verify `msg.sender`.
+All long-running async callbacks are delivered by the AsyncDelivery contract. Always verify `msg.sender` — but do not stop there: that check authenticates the delivery transport, not the job. Any caller can put your contract and selector into its own delivery configuration, so a contract that accepts every AsyncDelivery callback can process a result for a job it never submitted.
+
+Close the loop with a pending-job registry keyed by the origin tx hash (= callback `jobId`). The 0x0830 TX Hash precompile reports the current transaction hash on-chain, so register it at submit time and consume it in the callback:
 
 ```solidity
 address constant ASYNC_DELIVERY = 0x5A16214fF555848411544b005f7Ac063742f39F6;
+address constant TX_HASH_PRECOMPILE = address(0x0830);
+
+mapping(bytes32 => bool) public pendingJobs;
 
 modifier onlyAsyncDelivery() {
     require(msg.sender == ASYNC_DELIVERY, "only async delivery");
     _;
 }
 
+// Call immediately before the long-running precompile call, in the same tx.
+function _trackCurrentJob() internal returns (bytes32 jobId) {
+    (bool ok, bytes memory output) = TX_HASH_PRECOMPILE.staticcall("");
+    require(ok && output.length == 32, "tx hash unavailable");
+    jobId = abi.decode(output, (bytes32));
+    require(!pendingJobs[jobId], "job already pending");
+    pendingJobs[jobId] = true;
+}
+
 function onResult(bytes32 jobId, bytes calldata result) external onlyAsyncDelivery {
-    require(!fulfilled[jobId], "already fulfilled");
-    fulfilled[jobId] = true;
+    require(pendingJobs[jobId], "unknown or fulfilled job");
+    delete pendingJobs[jobId]; // effects before processing or external calls
     // process result
 }
 ```
+
+Apply access control to the submission function as well: pending-job tracking proves the job passed through this contract, not that every caller was authorized to create it.
 
 ### Escape Hatch for Stuck State
 
