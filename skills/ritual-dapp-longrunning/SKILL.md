@@ -600,9 +600,10 @@ export function useAsyncJob({
     abi: consumerAbi,
     eventName: 'JobCompleted',
     async onLogs(logs) {
+      if (!publicClient) return; // client can be undefined before hydration
       for (const log of logs) {
         const args = (log as unknown as { args: { jobId: `0x${string}` } }).args;
-        const result = await publicClient!.readContract({
+        const result = await publicClient.readContract({
           address: consumerAddress,
           abi: consumerAbi,
           functionName: 'getResult',
