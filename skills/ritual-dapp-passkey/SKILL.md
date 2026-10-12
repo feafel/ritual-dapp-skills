@@ -322,6 +322,20 @@ function verifyP256(
 
 **Key difference from RIP-7212**: The production precompile takes a **raw message** (internally hashed with SHA-256 by the precompile), NOT a pre-hashed message. The pubkey can be compressed (33 bytes) or uncompressed (65 bytes with `0x04` prefix).
 
+> **Defense in depth.** Client-side `normalizeS` keeps your signatures canonical, and the chain is documented to enforce low-s — but if your contract keys nullifiers or replay protection off the signature bytes themselves, enforce it on-chain too (a malleated `(r, n-s)` sibling verifies identically):
+>
+> ```solidity
+> uint256 constant P256_N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551;
+> uint256 constant P256_HALF_N = P256_N / 2;
+>
+> function requireLowS(bytes calldata signature) internal pure {
+>     require(signature.length == 64, "bad sig length");
+>     bytes32 s; // second word: .offset points at length, +32 = r, +64 = s
+>     assembly { s := calldataload(add(signature.offset, 64)) }
+>     require(uint256(s) <= P256_HALF_N, "high-s signature");
+> }
+> ```
+
 ### 3b. PrecompileConsumer Helper
 
 The `PrecompileConsumer` base contract provides a convenience wrapper:
