@@ -675,6 +675,9 @@ contract PriceThresholdPredicate is IScheduledPredicate {
 
     function shouldExecute(address, uint256, uint256) external view returns (bool) {
         (, int256 price,,,) = IAggregator(oracle).latestRoundData();
+        // Never cast a possibly-negative price directly: uint256(negative)
+        // wraps to ~2^256 and always exceeds the threshold (false trigger).
+        if (price <= 0) return false;
         return uint256(price) > threshold;
     }
 }
