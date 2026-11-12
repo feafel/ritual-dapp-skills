@@ -32,20 +32,20 @@ The builder agent should never have to decide "should I use Chainlink or the HTT
 | AI audio generation | Audio precompile `0x0819` | Off-chain TTS/music API |
 | AI video generation | Video precompile `0x081A` | Off-chain video API |
 | Long-running computation (minutes to hours) | Long HTTP `0x0805`: task polling or RITHTTP1 held response | Off-chain worker queue + webhook |
-| Recurring/scheduled execution | Scheduler `0x35C7` | Off-chain cron, Gelato, Chainlink Keepers |
+| Recurring/scheduled execution | Scheduler `0x4E0abeE2233D73E66382b45244F7459B34E1490E` | Off-chain cron, Gelato, Chainlink Keepers |
 | Conditional execution (predicate-gated) | Scheduler with predicates | Off-chain bot watching events |
 | Time-delayed execution | Scheduler | Off-chain timer + bot |
 | Secret API key management | ECIES encryption + secret string replacement | .env files, backend vault |
-| Delegated secret sharing | SecretsAccessControl `0x1A8b` | Backend key management service |
+| Delegated secret sharing | SecretsAccessControl `0x0cEae62e2082829226eF5821Bb662483Db17A71F` | Backend key management service |
 | Private/encrypted outputs | ECIES userPublicKey per precompile | Off-chain encryption layer |
 | Pay-per-call API access | X402 via HTTP precompile | Off-chain payment processing |
 | P-256 signature verification (WebAuthn) | SECP256R1 `0x0100` | Off-chain verification + oracle |
 | Passkey-based transaction signing | TxPasskey `0x77` | Not possible on other chains |
 | ZK proof generation + verification | ZK precompile `0x0806` | Off-chain prover + on-chain verifier contract |
 | Ed25519 signature verification | Ed25519 precompile `0x09` | Solidity library (expensive) |
-| Fee deposit and escrow reservation | RitualWallet `0x223D` | Manual gas management |
-| Executor capability discovery | TEEServiceRegistry `0xF5e3` | No equivalent |
-| Async job lifecycle tracking | AsyncJobTracker `0x9Ffd` | Custom event indexing |
+| Fee deposit and escrow reservation | RitualWallet `0xF04076756d8129Baec46Dc0F1c526Baec490C393` | Manual gas management |
+| Executor capability discovery | TEEServiceRegistry `0xf4495DC72143D44A93AB0ecE4d6D63a216b27839` | No equivalent |
+| Async job lifecycle tracking | AsyncJobTracker `0xf00385449fD961925A0B125F5f30b29B682D4bFb` | Custom event indexing |
 
 ### What stays OFF-CHAIN (Ritual does not handle these)
 
@@ -146,17 +146,17 @@ For every capability extracted in Step 2, assign the optimal Ritual primitive. T
 | Image generation | Off-chain Stable Diffusion API | Image precompile | `0x0818` |
 | Audio generation | Off-chain TTS/music API | Audio precompile | `0x0819` |
 | Video generation | Off-chain video API | Video precompile | `0x081A` |
-| Recurring execution | Off-chain cron job, Gelato | Scheduler system contract | `0x35C7` |
-| Conditional execution | Off-chain bot watching events | Scheduler with predicates | `0x35C7` |
+| Recurring execution | Off-chain cron job, Gelato | Scheduler system contract | `0x4E0abeE2233D73E66382b45244F7459B34E1490E` |
+| Conditional execution | Off-chain bot watching events | Scheduler with predicates | `0x4E0abeE2233D73E66382b45244F7459B34E1490E` |
 | Secret API keys | .env files, backend vault | ECIES encryption + secret string replacement | See `ritual-dapp-secrets` |
-| Delegated secret access | Backend key management | SecretsAccessControl | `0x1A8b` |
+| Delegated secret access | Backend key management | SecretsAccessControl | `0x0cEae62e2082829226eF5821Bb662483Db17A71F` |
 | Private outputs | Off-chain encryption | ECIES userPublicKey field | Per-precompile param |
 | Passkey authentication | MetaMask, WalletConnect | TxPasskey + SECP256R1 | `0x77` + `0x0100` |
 | Micropayments for APIs | Off-chain payment processing | X402 via HTTP precompile | `0x0801` + X402 |
 | Long-running computation | Off-chain worker queue | Long-Running HTTP precompile | `0x0805` |
 | JSON transformation | Off-chain code | JQ precompile (synchronous) | `0x0803` |
 | Signature verification (P-256) | Off-chain verification | SECP256R1 precompile | `0x0100` |
-| Fee management | Manual gas estimation | RitualWallet deposit + escrow reservation | `0x223D` |
+| Fee management | Manual gas estimation | RitualWallet deposit + escrow reservation | `0xF04076756d8129Baec46Dc0F1c526Baec490C393` |
 
 **If a capability doesn't map to any Ritual primitive**, note it as requiring off-chain infrastructure (backend, external service). Not everything belongs on-chain. Be honest about what Ritual can and can't do.
 
@@ -168,7 +168,7 @@ For every capability extracted in Step 2, assign the optimal Ritual primitive. T
 
 Check whether the mapped precompiles include more than one short-running async precompile (HTTP `0x0801`, LLM `0x0802`, DKMS `0x081B`). If yes, the user's idea requires multiple short-running async calls, which cannot happen in one transaction.
 
-**Resolution:** Split the workflow into sequential transactions chained via the Scheduler. Add the Scheduler (`0x35C7`) to the spec if it isn't already there. Note this in the spec as an architectural constraint the builder must handle.
+**Resolution:** Split the workflow into sequential transactions chained via the Scheduler. Add the Scheduler (`0x4E0abeE2233D73E66382b45244F7459B34E1490E`) to the spec if it isn't already there. Note this in the spec as an architectural constraint the builder must handle.
 
 ### Step 4b: Detect additional architectural constraints
 

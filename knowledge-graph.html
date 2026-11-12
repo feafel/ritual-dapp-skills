@@ -219,7 +219,7 @@ const nodes = [
   { id: 'agents-skill',  label: 'Agents',                 group: 'feature',    r: 16, desc: 'Persistent Agent (0x0820), Sovereign Agent (0x080C). Two-phase submit→callback with tools.' },
   { id: 'longrunning',   label: 'Long-Running HTTP',      group: 'feature',    r: 15, desc: 'Long HTTP (0x0805). Submit→poll→deliver with JQ extraction. Minutes to hours execution.' },
   { id: 'multimodal',    label: 'Multimodal (Img/Audio/Video)', group: 'feature',   r: 16, desc: 'Image (0x0818), Audio (0x0819), Video (0x081A). Two-phase async with encrypted storage credentials.' },
-  { id: 'scheduler',     label: 'Scheduler',              group: 'feature',    r: 14, desc: 'Scheduler contract (0x35C7...). Delayed and recurring execution. FSM: SCHEDULED→EXECUTING→COMPLETED.' },
+  { id: 'scheduler',     label: 'Scheduler',              group: 'feature',    r: 14, desc: 'Scheduler contract (0x4E0a...). Delayed and recurring execution. FSM: SCHEDULED→EXECUTING→COMPLETED.' },
   { id: 'secrets',       label: 'Secrets',                group: 'feature',    r: 15, desc: 'ECIES encryption to executor public key. {{SECRET}} substitution. SecretsAccessControl for delegation.' },
   { id: 'x402',          label: 'X402 Payments',          group: 'feature',    r: 13, desc: 'Micropayments for paid APIs via HTTP precompile. ECIES-encrypted payment credentials.' },
   { id: 'zk',            label: 'ZK Proofs',              group: 'feature',    r: 14, desc: 'ZK Two-Phase (0x0806). Submit→prove→callback with on-chain verification. Verifiable computation.' },
@@ -235,11 +235,11 @@ const nodes = [
   { id: 'testing',       label: 'Testing',                group: 'fullstack',  r: 14, desc: 'Foundry unit/fuzz/fork tests. vm.mockCall for precompiles. Vitest for frontend. CI/CD patterns.' },
 
   // System contracts
-  { id: 'sys-wallet',    label: 'RitualWallet (0x223D)', group: 'system',     r: 12, desc: 'Fee deposits and locking for async operations. Address: 0xF04076756d8129Baec46Dc0F1c526Baec490C393' },
-  { id: 'sys-jobtrack',  label: 'AsyncJobTracker (0x9Ffd)', group: 'system',  r: 12, desc: 'Tracks async job states and results. Address: 0xf00385449fD961925A0B125F5f30b29B682D4bFb' },
-  { id: 'sys-tee',       label: 'TEEServiceRegistry (0xF5e3)', group: 'system', r: 12, desc: 'Registry of TEE executors and their capabilities. Address: 0xf4495DC72143D44A93AB0ecE4d6D63a216b27839' },
-  { id: 'sys-scheduler', label: 'Scheduler (0x35C7)',     group: 'system',     r: 11, desc: 'Time-based scheduled precompile calls. Address: 0x4E0abeE2233D73E66382b45244F7459B34E1490E' },
-  { id: 'sys-secrets',   label: 'SecretsACL (0x1A8b)',    group: 'system',     r: 11, desc: 'Access control for delegated secret sharing. Address: 0x0cEae62e2082829226eF5821Bb662483Db17A71F' },
+  { id: 'sys-wallet',    label: 'RitualWallet (0xF040)', group: 'system',     r: 12, desc: 'Fee deposits and locking for async operations. Address: 0xF04076756d8129Baec46Dc0F1c526Baec490C393' },
+  { id: 'sys-jobtrack',  label: 'AsyncJobTracker (0xf003)', group: 'system',  r: 12, desc: 'Tracks async job states and results. Address: 0xf00385449fD961925A0B125F5f30b29B682D4bFb' },
+  { id: 'sys-tee',       label: 'TEEServiceRegistry (0xf449)', group: 'system', r: 12, desc: 'Registry of TEE executors and their capabilities. Address: 0xf4495DC72143D44A93AB0ecE4d6D63a216b27839' },
+  { id: 'sys-scheduler', label: 'Scheduler (0x4E0a)',     group: 'system',     r: 11, desc: 'Time-based scheduled precompile calls. Address: 0x4E0abeE2233D73E66382b45244F7459B34E1490E' },
+  { id: 'sys-secrets',   label: 'SecretsACL (0x0cEa)',    group: 'system',     r: 11, desc: 'Access control for delegated secret sharing. Address: 0x0cEae62e2082829226eF5821Bb662483Db17A71F' },
 
   // Precompile addresses (selected key ones)
   { id: 'pc-http',       label: '0x0801 HTTP',            group: 'precompile', r: 9,  desc: 'Async SPC. External HTTP calls inside TEE.' },
