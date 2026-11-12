@@ -76,9 +76,11 @@ If no callback logs: verify selector (`cast sig "handleCallback(bytes32,bytes)"`
 
 ```bash
 cast call 0xf00385449fD961925A0B125F5f30b29B682D4bFb \
-  "getJob(bytes32)(uint8,address,address,uint256,uint256,bytes)" \
+  "getJob(bytes32)((bytes32,address,uint256,bytes32,uint256,uint256,address,address,address,bytes32,uint256,uint256,uint8,address),bytes,bytes)" \
   <JOB_ID> --rpc-url https://rpc.ritualfoundation.org
 ```
+
+`getJob` returns a 14-field `Job` struct followed by two `bytes` values (matching `ritual-dapp-contracts`). The state enum below is the **13th** struct field (0-based index 12); the trailing `bytes` are empty for a live job. Decoding with a shorter signature (e.g. the old 6-field `(uint8,address,address,uint256,uint256,bytes)`) fails with `ABI decoding failed: buffer overrun while deserializing`.
 
 | State | Value | Meaning | Next |
 |-------|-------|---------|------|
