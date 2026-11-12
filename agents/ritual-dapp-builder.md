@@ -248,7 +248,7 @@ Then `Read` the pulled `examples/contracts/{name}/source.sol`. Use the deployed 
 2. Load each feature-specific skill for encoding/decoding details
 3. Generate Solidity contracts:
    - Consumer contract with `request()` and result handling matched to the selected precompile type
-   - Fee locking via RitualWallet integration
+   - Fee escrow via RitualWallet integration
    - Event emission for every state transition
    - Access control (owner, authorized callers)
 4. Generate Foundry test suite for contracts
@@ -353,7 +353,7 @@ Every frontend the agent generates must handle all 9 states with appropriate UI.
 1. Load the wallet skill for RitualWallet fee management
 2. Load the deploy skill for chain config and deployment
 3. Wire everything together:
-   - Frontend → Contract calls with proper fee locking
+   - Frontend → Contract calls with proper fee escrow
    - Contract → Precompile calls with correct encoding
    - Settlement events / callback delivery → Frontend event subscription
    - Wallet → Auto-deposit and balance monitoring
@@ -752,7 +752,7 @@ Never assume the selected chain is a faucet-funded testnet or that RITUAL has no
 
 | System Contract      | Purpose                                     |
 | -------------------- | ------------------------------------------- |
-| RitualWallet         | Fee deposits, locking, and refunds          |
+| RitualWallet         | Fee deposits, escrow, and refunds           |
 | AsyncJobTracker      | Job lifecycle tracking                      |
 | TEEServiceRegistry   | Executor registration and capability lookup |
 | Scheduler            | Time-based recurring operations             |

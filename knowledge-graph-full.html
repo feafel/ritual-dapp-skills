@@ -224,7 +224,7 @@ const nodes = [
   {id:'x402',label:'X402 Payments',group:'feature',r:13,desc:'Micropayments for paid APIs via HTTP precompile. ECIES-encrypted credentials. Budget management. Flows through 0x0801.'},
   {id:'passkey',label:'Passkey',group:'feature',r:14,desc:'TxPasskey (0x77) + SECP256R1 (0x0100). P-256 WebAuthn. Low-s normalization. Address = keccak256(x||y) — NO 0x04 prefix. Recovery patterns.'},
 
-  {id:'contracts',label:'Contracts',group:'contracts',r:18,desc:'Consumer patterns: sync, SPC decoding, two-phase callbacks. Auth: require(msg.sender == AsyncDelivery). Fee locking. Events for every state transition. Custom errors.'},
+  {id:'contracts',label:'Contracts',group:'contracts',r:18,desc:'Consumer patterns: sync, SPC decoding, two-phase callbacks. Auth: require(msg.sender == AsyncDelivery). Fee escrow reservation. Events for every state transition. Custom errors.'},
   {id:'wallet',label:'RitualWallet',group:'contracts',r:16,desc:'Fee management (0x223D). deposit→reserve escrow→settle or refund→withdraw. Per-job sponsor escrow and bounded expiry cleanup. Must fund BEFORE async calls.'},
 
   {id:'frontend',label:'Frontend',group:'fullstack',r:18,desc:'Next.js + wagmi + Zustand. 9-state TX machine. spcCalls from RitualReceipt. SSE streaming. useSendTransaction (NOT writeContractAsync) for async precompiles.'},
