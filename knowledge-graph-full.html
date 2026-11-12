@@ -215,7 +215,7 @@ const nodes = [
   {id:'design',label:'Design System',group:'archRef',r:14,desc:'Dark-mode terminal aesthetic. Izoard/Barlow/JetBrains Mono. Green=trust, pink=AI, lime=data, gold=value. 9-state lifecycle components. WCAG 2.1 AA.'},
 
   {id:'http',label:'HTTP',group:'feature',r:17,desc:'0x0801. Async SPC — result in same TX. 11-field ABI. {{SECRET}} templates. JQ post-processing. One SPC per TX. Methods: GET=1, POST=2, PUT=3, DELETE=4, PATCH=5.'},
-  {id:'llm',label:'LLM',group:'feature',r:17,desc:'0x0802. 30-field ABI. OpenAI-compatible chat. Tool calling. Structured output. SSE streaming via EIP-712. Temp/topP ×1000. Private LLM via ECIES.'},
+  {id:'llm',label:'LLM',group:'feature',r:17,desc:'0x0802. 32-field ABI. OpenAI-compatible chat. Tool calling. Structured output. SSE streaming via EIP-712. Temp/topP ×1000. Private LLM via ECIES.'},
   {id:'agents-skill',label:'Agents',group:'feature',r:16,desc:'Persistent Agent (0x0820), Sovereign Agent (0x080C). Two-phase submit→callback. Tools: web_search, code_execution. Storage references for persistent state.'},
   {id:'longrunning',label:'Long-Running HTTP',group:'feature',r:15,desc:'0x0805. Submit→poll→deliver. Minutes-to-hours. pollIntervalBlocks + maxPollBlock. taskIdMarker. Scheduler integration for recurring long jobs.'},
   {id:'multimodal',label:'Multimodal',group:'feature',r:16,desc:'Image (0x0818), Audio (0x0819), Video (0x081A). Two-phase async. Encrypted storage credentials. Output: URI + content hash.'},
@@ -238,7 +238,7 @@ const nodes = [
   {id:'sys-secrets',label:'SecretsACL 0x1A8b',group:'system',r:9,desc:'Delegated secret sharing. 0x0cEae62e2082829226eF5821Bb662483Db17A71F'},
 
   {id:'pc-http',label:'0x0801 HTTP',group:'precompile',r:8,desc:'Async SPC. External HTTP in TEE. 11-field input.'},
-  {id:'pc-llm',label:'0x0802 LLM',group:'precompile',r:8,desc:'Async SPC. LLM inference. 30-field input.'},
+  {id:'pc-llm',label:'0x0802 LLM',group:'precompile',r:8,desc:'Async SPC. LLM inference. 32-field input.'},
   {id:'pc-jq',label:'0x0803 JQ',group:'precompile',r:6,desc:'Synchronous. JSON query/transformation.'},
   {id:'pc-longhttp',label:'0x0805 Long HTTP',group:'precompile',r:7,desc:'Two-phase. Long-running HTTP with polling.'},
   {id:'pc-zk',label:'0x0806 ZK',group:'precompile',r:7,desc:'Two-phase. ZK proof generation.'},
