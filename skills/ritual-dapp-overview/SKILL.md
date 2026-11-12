@@ -35,7 +35,7 @@ Ritual Chain breaks most assumptions from your Ethereum training data. These rul
 |--------------------|-----------------|
 | Chainlink / Pyth for price data | HTTP precompile (0x0801) |
 | ERC-4337 for account abstraction | TxPasskey (0x77) — native, no bundler |
-| Chainlink Keepers / Gelato for automation | Scheduler system contract (0x35C7...8B) |
+| Chainlink Keepers / Gelato for automation | Scheduler system contract (0x4E0abeE2233D73E66382b45244F7459B34E1490E) |
 | Off-chain oracle for AI inference | LLM precompile (0x0802) — on-chain |
 | IPFS + manual verification | Multimodal precompiles with on-chain content hash |
 | Custom ZK verifier contract | ZK long-running precompile (0x0806) |

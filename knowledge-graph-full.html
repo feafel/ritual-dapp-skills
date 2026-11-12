@@ -219,23 +219,23 @@ const nodes = [
   {id:'agents-skill',label:'Agents',group:'feature',r:16,desc:'Persistent Agent (0x0820), Sovereign Agent (0x080C). Two-phase submit→callback. Tools: web_search, code_execution. Storage references for persistent state.'},
   {id:'longrunning',label:'Long-Running HTTP',group:'feature',r:15,desc:'0x0805. Submit→poll→deliver. Minutes-to-hours. pollIntervalBlocks + maxPollBlock. taskIdMarker. Scheduler integration for recurring long jobs.'},
   {id:'multimodal',label:'Multimodal',group:'feature',r:16,desc:'Image (0x0818), Audio (0x0819), Video (0x081A). Two-phase async. Encrypted storage credentials. Output: URI + content hash.'},
-  {id:'scheduler',label:'Scheduler',group:'feature',r:15,desc:'System contract 0x35C7. FSM: SCHEDULED→EXECUTING→COMPLETED. Execution index via 0xfa7e. Predicates. Frequency-as-predicate. Funds are checked just-in-time per execution; keep optional headroom for numCalls.'},
-  {id:'secrets',label:'Secrets',group:'feature',r:15,desc:'ECIES to executor pubkey (eciesjs). {{SECRET}} substitution. Private outputs via userPublicKey. SecretsACL (0x1A8b) for delegation. Contract-owned vs EOA-owned.'},
+  {id:'scheduler',label:'Scheduler',group:'feature',r:15,desc:'System contract 0x4E0a. FSM: SCHEDULED→EXECUTING→COMPLETED. Execution index via 0xfa7e. Predicates. Frequency-as-predicate. Funds are checked just-in-time per execution; keep optional headroom for numCalls.'},
+  {id:'secrets',label:'Secrets',group:'feature',r:15,desc:'ECIES to executor pubkey (eciesjs). {{SECRET}} substitution. Private outputs via userPublicKey. SecretsACL (0x0cEa) for delegation. Contract-owned vs EOA-owned.'},
   {id:'x402',label:'X402 Payments',group:'feature',r:13,desc:'Micropayments for paid APIs via HTTP precompile. ECIES-encrypted credentials. Budget management. Flows through 0x0801.'},
   {id:'passkey',label:'Passkey',group:'feature',r:14,desc:'TxPasskey (0x77) + SECP256R1 (0x0100). P-256 WebAuthn. Low-s normalization. Address = keccak256(x||y) — NO 0x04 prefix. Recovery patterns.'},
 
   {id:'contracts',label:'Contracts',group:'contracts',r:18,desc:'Consumer patterns: sync, SPC decoding, two-phase callbacks. Auth: require(msg.sender == AsyncDelivery). Fee locking. Events for every state transition. Custom errors.'},
-  {id:'wallet',label:'RitualWallet',group:'contracts',r:16,desc:'Fee management (0x223D). deposit→reserve escrow→settle or refund→withdraw. Per-job sponsor escrow and bounded expiry cleanup. Must fund BEFORE async calls.'},
+  {id:'wallet',label:'RitualWallet',group:'contracts',r:16,desc:'Fee management (0xF040). deposit→reserve escrow→settle or refund→withdraw. Per-job sponsor escrow and bounded expiry cleanup. Must fund BEFORE async calls.'},
 
   {id:'frontend',label:'Frontend',group:'fullstack',r:18,desc:'Next.js + wagmi + Zustand. 9-state TX machine. spcCalls from RitualReceipt. SSE streaming. useSendTransaction (NOT writeContractAsync) for async precompiles.'},
   {id:'backend',label:'Backend',group:'fullstack',r:15,desc:'Event indexer + APIs. Fastify + Drizzle + BullMQ + PostgreSQL. Watches AsyncJobTracker events. Checkpoint persistence. Sender lock serialization.'},
   {id:'testing',label:'Testing',group:'fullstack',r:14,desc:'Foundry unit/fuzz/fork. vm.mockCall for precompiles. Vitest frontend. Playwright E2E. Mock executor responses.'},
 
-  {id:'sys-wallet',label:'RitualWallet 0x223D',group:'system',r:10,desc:'Fee deposits and escrow reservation. 0xF04076756d8129Baec46Dc0F1c526Baec490C393'},
-  {id:'sys-jobtrack',label:'AsyncJobTracker 0x9Ffd',group:'system',r:10,desc:'Job lifecycle tracking. 0xf00385449fD961925A0B125F5f30b29B682D4bFb'},
-  {id:'sys-tee',label:'TEEServiceRegistry 0xF5e3',group:'system',r:10,desc:'Executor registration + capability lookup. 0xf4495DC72143D44A93AB0ecE4d6D63a216b27839'},
-  {id:'sys-scheduler',label:'Scheduler 0x35C7',group:'system',r:9,desc:'Time-based scheduled calls. 0x4E0abeE2233D73E66382b45244F7459B34E1490E'},
-  {id:'sys-secrets',label:'SecretsACL 0x1A8b',group:'system',r:9,desc:'Delegated secret sharing. 0x0cEae62e2082829226eF5821Bb662483Db17A71F'},
+  {id:'sys-wallet',label:'RitualWallet 0xF040',group:'system',r:10,desc:'Fee deposits and escrow reservation. 0xF04076756d8129Baec46Dc0F1c526Baec490C393'},
+  {id:'sys-jobtrack',label:'AsyncJobTracker 0xf003',group:'system',r:10,desc:'Job lifecycle tracking. 0xf00385449fD961925A0B125F5f30b29B682D4bFb'},
+  {id:'sys-tee',label:'TEEServiceRegistry 0xf449',group:'system',r:10,desc:'Executor registration + capability lookup. 0xf4495DC72143D44A93AB0ecE4d6D63a216b27839'},
+  {id:'sys-scheduler',label:'Scheduler 0x4E0a',group:'system',r:9,desc:'Time-based scheduled calls. 0x4E0abeE2233D73E66382b45244F7459B34E1490E'},
+  {id:'sys-secrets',label:'SecretsACL 0x0cEa',group:'system',r:9,desc:'Delegated secret sharing. 0x0cEae62e2082829226eF5821Bb662483Db17A71F'},
 
   {id:'pc-http',label:'0x0801 HTTP',group:'precompile',r:8,desc:'Async SPC. External HTTP in TEE. 11-field input.'},
   {id:'pc-llm',label:'0x0802 LLM',group:'precompile',r:8,desc:'Async SPC. LLM inference. 30-field input.'},
@@ -251,7 +251,7 @@ const nodes = [
   {id:'pc-p256',label:'0x0100 P-256',group:'precompile',r:6,desc:'Synchronous. WebAuthn signature verification.'},
 
   {id:'tee-executor',label:'TEE Executor',group:'infra',r:14,desc:'Off-chain TEE (AWS Nitro / Intel SGX). Runs computation in enclave. Signs with attestation key. Registered in TEEServiceRegistry.'},
-  {id:'async-delivery',label:'AsyncDelivery 0xEc2d',group:'infra',r:11,desc:'Callback delivery proxy. msg.sender for ALL callbacks. 0x508f57AE70967Da28AE0Ab6b95532878c4D0F440'},
+  {id:'async-delivery',label:'AsyncDelivery 0x508f',group:'infra',r:11,desc:'Callback delivery proxy. msg.sender for ALL callbacks. 0x508f57AE70967Da28AE0Ab6b95532878c4D0F440'},
   {id:'ritual-chain',label:'Ritual Chain 784',group:'infra',r:16,desc:'L1 with enshrined AI/ML precompiles. RITUAL (18 decimals). ~350ms conservative baseline. EIP-1559 only. TX types: 0x10 (scheduled), 0x11 (commitment), 0x12 (settlement).'},
 ];
 
