@@ -191,7 +191,7 @@ Agent precompiles (and other long-running async precompiles) are committed to th
 **If the executor is unreachable:**
 - The job remains in PENDING_EXECUTION until TTL expires
 - Your callback is never invoked
-- RitualWallet funds remain locked until TTL block is reached
+- The sponsor's RitualWallet funds stay in per-job escrow until settlement or TTL expiry (deposits themselves are never locked)
 - No error is returned — the transaction appears successful (Phase 1 mined)
 
 **Mitigation:** Select and pin an executor before sealing secrets, because signatures bind to it. Persistent application launches use valid HTTP_CALL registration, a nonempty encryption key and deployment allowlist/exclusions; an empty registry endpoint is valid. Admission capacity remains finite and is enforced by the executor. Authorized operator health probes can diagnose capacity but public endpoint reachability is not a required product eligibility gate. See Persistent Agent Preflight #6. Sovereign-job health checks are described separately above.
